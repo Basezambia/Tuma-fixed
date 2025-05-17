@@ -217,16 +217,30 @@ const Send = () => {
         })
       });
 
-      const data = await response.json();
+      // Handle response as text first to avoid JSON parsing errors
+      const textResponse = await response.text();
+      
       if (!response.ok) {
-        throw new Error(`Failed to create charge: ${data.error || data.details || 'Unknown error'}`);
+        console.error('API response:', textResponse);
+        throw new Error(`Failed to create charge: ${textResponse}`);
       }
 
+      // Parse JSON safely
+      let data;
+      try {
+        data = JSON.parse(textResponse);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        throw new Error('Invalid response from server');
+      }
+
+      // Extract charge ID
       const chargeId = data.data?.id || data.id;
       if (!chargeId) {
         throw new Error('No charge ID received');
       }
 
+      // Store charge ID and set status
       setChargeId(chargeId);
       setPaymentStatus('pending');
       
