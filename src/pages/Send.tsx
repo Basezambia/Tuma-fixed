@@ -213,7 +213,6 @@ const Send = () => {
             recipient: recipientAddress,
             documentId,
             fileSizeTier,
-            // Add timestamp for tracking
             timestamp: new Date().toISOString()
           }
         })
@@ -223,8 +222,12 @@ const Send = () => {
       const textResponse = await response.text();
       
       if (!response.ok) {
-        console.error('API response:', textResponse);
-        throw new Error(`Failed to create charge: ${textResponse}`);
+        const errorData = response.headers.get('content-type')?.includes('application/json') 
+          ? JSON.parse(textResponse)
+          : { error: textResponse };
+        
+        console.error('API response:', errorData);
+        throw new Error(errorData.error || errorData.details || textResponse);
       }
 
       // Parse JSON safely

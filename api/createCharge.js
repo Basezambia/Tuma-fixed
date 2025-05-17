@@ -14,29 +14,56 @@ export default async function handler(req, res) {
       });
     }
 
-    const { amount, currency, name, description, metadata } = req.body;
-    
-    if (!amount || !currency) {
+    // Get request body
+    const body = req.body;
+    if (!body) {
       return res.status(400).json({
-        error: 'Missing required fields',
-        details: 'amount and currency are required'
+        error: 'Invalid request body',
+        details: 'Request body is required'
       });
     }
 
-    if (typeof amount !== 'number' || amount <= 0) {
+    // Extract fields with defaults
+    const { 
+      amount = 0, 
+      currency = 'USD',
+      name = 'Document Payment',
+      description = 'Payment for document upload',
+      metadata = {}
+    } = body;
+
+    // Validate amount
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({
         error: 'Invalid amount',
         details: 'Amount must be a positive number'
       });
     }
 
+    // Validate currency
     const supportedCurrencies = ['USD', 'EUR', 'GBP'];
-    if (!supportedCurrencies.includes(currency)) {
+    if (!supportedCurrencies.includes(currency.toUpperCase())) {
       return res.status(400).json({
         error: 'Unsupported currency',
         details: `Supported currencies: ${supportedCurrencies.join(', ')}`
       });
     }
+
+    // Prepare charge data
+    const chargeData = {
+      name,
+      description,
+      pricing_type: 'fixed_price',
+      local_price: { 
+        amount: parsedAmount.toString(), 
+        currency: currency.toUpperCase()
+      },
+      metadata: {
+        ...metadata,
+        timestamp: new Date().toISOString()
+      }
+    };
 
     const options = {
       method: 'POST',
