@@ -211,7 +211,9 @@ const Send = () => {
         })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to create charge');
+      if (!response.ok) {
+        throw new Error(`Failed to create charge: ${data.error || data.details || 'Unknown error'}`);
+      }
       setChargeId(data.id); // store chargeId for polling
       setPaymentStatus('pending'); // set payment status to pending immediately after charge creation
       // Timer is now handled by the effect that depends on chargeId and paymentStatus
