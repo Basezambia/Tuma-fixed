@@ -1,5 +1,25 @@
-// /api/chargeStatus.js (Vercel Serverless Function)
-export default async function handler(req, res) {
+const fetch = require('node-fetch');
+
+// Enable CORS
+const allowCors = fn => async (req, res) => {
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  return await fn(req, res);
+};
+
+const handler = async (req, res) => {
   const { chargeId } = req.query;
   const apiKey = process.env.COINBASE_COMMERCE_API_KEY;
   if (!chargeId || !apiKey) {
@@ -23,4 +43,6 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }
-}
+};
+
+module.exports = allowCors(handler);

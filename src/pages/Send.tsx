@@ -167,7 +167,12 @@ const Send = () => {
     ) {
       const poll = async () => {
         try {
-          const res = await fetch(`/api/chargeStatus?chargeId=${chargeId}`);
+          // In production, this will automatically point to /api/chargeStatus
+          // In development, it will use the VITE_API_BASE_URL if set, or default to localhost:4000
+          const apiBase = import.meta.env.DEV 
+            ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000')
+            : '';
+          const res = await fetch(`${apiBase}/api/chargeStatus?chargeId=${chargeId}`);
           const data = await res.json();
           if (data.statusName && ['PENDING', 'pending'].includes(data.statusName)) {
             setPaymentStatus('pending');
@@ -199,8 +204,12 @@ const Send = () => {
       setPaymentStatus('processing');
       setPaymentError(null);
       // Call backend to create charge with correct amount
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/createCharge`, {
+      // In production, this will automatically point to /api/createCharge
+      // In development, it will use the VITE_API_BASE_URL if set, or default to localhost:4000
+      const apiBase = import.meta.env.DEV 
+        ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000')
+        : '';
+      const response = await fetch(`${apiBase}/api/createCharge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
