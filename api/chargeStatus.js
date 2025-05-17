@@ -1,32 +1,5 @@
 // /api/chargeStatus.js (Vercel Serverless Function)
-// @ts-check
-/**
- * @typedef {import('@vercel/node').VercelRequest} VercelRequest
- * @typedef {import('@vercel/node').VercelResponse} VercelResponse
- */
-
-// Dynamic import for node-fetch with proper typing
-/**
- * @typedef {import('node-fetch').RequestInfo} RequestInfo
- * @typedef {import('node-fetch').RequestInit} RequestInit
- * @typedef {import('node-fetch').Response} Response
- */
-
-/**
- * @param {RequestInfo} url
- * @param {RequestInit} [options]
- * @returns {Promise<Response>}
- */
-const fetch = async (url, options) => {
-  const { default: fetchFn } = await import('node-fetch');
-  return fetchFn(url, options);
-};
-
-/**
- * @param {VercelRequest} req
- * @param {VercelResponse} res
- */
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   const { chargeId } = req.query;
   const apiKey = process.env.COINBASE_COMMERCE_API_KEY;
   if (!chargeId || !apiKey) {
@@ -40,17 +13,14 @@ module.exports = async (req, res) => {
         'Content-Type': 'application/json',
       },
     });
-    const data = /** @type {any} */ (await response.json());
+    const data = await response.json();
     if (!response.ok) {
-      return res.status(response.status).json({ error: data?.error || 'Failed to get charge status' });
+      return res.status(response.status).json({ error: data.error || 'Failed to get charge status' });
     }
-    const timeline = data?.data?.timeline || [];
-    const statusName = timeline.length > 0 ? timeline[timeline.length - 1].status : data?.data?.status;
+    const timeline = data.data.timeline || [];
+    const statusName = timeline.length > 0 ? timeline[timeline.length - 1].status : data.data.status;
     return res.status(200).json({ statusName });
   } catch (err) {
-    console.error('Error in chargeStatus:', err);
-    return res.status(500).json({ 
-      error: err instanceof Error ? err.message : 'Internal server error' 
-    });
+    return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
