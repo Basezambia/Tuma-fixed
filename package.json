@@ -9,12 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "api": "vercel dev api",
-    "build:api": "vercel build",
-    "deploy:api": "vercel deploy --prebuilt",
-    "start:api": "vercel start api",
-    "test:api": "vercel test api",
-    "deploy": "npm run build && npm run deploy:api"
+    "start": "vite preview --port 3000 --host"
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",
