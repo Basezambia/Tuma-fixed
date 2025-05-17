@@ -35,8 +35,7 @@
   "build": {
     "env": {
       "NODE_ENV": "production"
-    },
-    "outputDirectory": "dist"
+    }
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
