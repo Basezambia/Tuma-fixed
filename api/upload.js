@@ -1,5 +1,19 @@
+// @ts-check
 import Arweave from 'arweave';
 
+/**
+ * @typedef {import('@vercel/node').VercelRequest} VercelRequest
+ * @typedef {import('@vercel/node').VercelResponse} VercelResponse
+ * @typedef {Object} UploadRequestBody
+ * @property {string} ciphertext - The encrypted file data as base64
+ * @property {string} iv - The initialization vector for decryption
+ * @property {Record<string, any>} [metadata] - Optional metadata to include with the upload
+ */
+
+/**
+ * @param {VercelRequest} req
+ * @param {VercelResponse} res
+ */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -38,6 +52,8 @@ export default async function handler(req, res) {
     }
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'An unknown error occurred during upload' 
+    });
   }
 }
