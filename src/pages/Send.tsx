@@ -198,7 +198,8 @@ const Send = () => {
     try {
       setPaymentStatus('processing');
       setPaymentError(null);
-      // Call backend to create charge with correct amount
+      
+      // Create charge with dynamic pricing
       const response = await fetch('/api/createCharge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -207,21 +208,35 @@ const Send = () => {
           currency: paymentCurrency,
           name: 'Document Payment',
           description: `Payment for document (tier: ${fileSizeTier})`,
-          metadata: { sender: senderAddress, recipient: recipientAddress, documentId }
+          metadata: {
+            sender: senderAddress,
+            recipient: recipientAddress,
+            documentId,
+            fileSizeTier
+          }
         })
       });
+
       const data = await response.json();
       if (!response.ok) {
         throw new Error(`Failed to create charge: ${data.error || data.details || 'Unknown error'}`);
       }
-      setChargeId(data.id); // store chargeId for polling
-      setPaymentStatus('pending'); // set payment status to pending immediately after charge creation
-      // Timer is now handled by the effect that depends on chargeId and paymentStatus
-      return data.id; // chargeId
+
+      const chargeId = data.data?.id || data.id;
+      if (!chargeId) {
+        throw new Error('No charge ID received');
+      }
+
+      setChargeId(chargeId);
+      setPaymentStatus('pending');
+      
+      // Return the charge ID for Coinbase Commerce Checkout
+      return chargeId;
     } catch (err: any) {
+      console.error('Charge creation error:', err);
       setPaymentStatus('error');
       setPaymentError(err.message || 'Failed to create charge');
-      throw err;
+      return null;
     }
   }, [serviceFee, paymentCurrency, fileSizeTier, senderAddress, recipientAddress, documentId]);
 
