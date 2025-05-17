@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel-build": "node vercel-build.js",
+    "start": "vite preview --port $PORT --host"
   },
   "engines": {
     "node": ">=14.x"
