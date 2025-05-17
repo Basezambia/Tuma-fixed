@@ -212,7 +212,9 @@ const Send = () => {
             sender: senderAddress,
             recipient: recipientAddress,
             documentId,
-            fileSizeTier
+            fileSizeTier,
+            // Add timestamp for tracking
+            timestamp: new Date().toISOString()
           }
         })
       });

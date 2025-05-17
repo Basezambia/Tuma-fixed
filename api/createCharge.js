@@ -54,9 +54,7 @@ export default async function handler(req, res) {
           amount: amount.toString(), 
           currency 
         },
-        metadata: metadata || {},
-        redirect_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment/success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/payment/cancel`
+        metadata: metadata || {}
       }),
     };
 
