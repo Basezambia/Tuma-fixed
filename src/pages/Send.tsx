@@ -3,7 +3,6 @@ import { FileUp, Send as SendIcon, User, Users, X, AlertCircle, Coins, Clock, Be
 import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, FileMetadata } from "@/lib/arweave-service";
-import { createCharge, getChargeStatus } from "@/lib/apiClient";
 import { encryptFileBufferHKDF } from '@/lib/encryption';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAccount } from 'wagmi';
@@ -168,7 +167,8 @@ const Send = () => {
     ) {
       const poll = async () => {
         try {
-          const data = await getChargeStatus(chargeId);
+          const res = await fetch(`/api/chargeStatus?chargeId=${chargeId}`);
+          const data = await res.json();
           if (data.statusName && ['PENDING', 'pending'].includes(data.statusName)) {
             setPaymentStatus('pending');
             setPaymentError(null);
@@ -199,13 +199,19 @@ const Send = () => {
       setPaymentStatus('processing');
       setPaymentError(null);
       // Call backend to create charge with correct amount
-      const data = await createCharge({
-        amount: serviceFee,
-        currency: paymentCurrency,
-        name: 'Document Payment',
-        description: `Payment for document (tier: ${fileSizeTier})`,
-        metadata: { sender: senderAddress, recipient: recipientAddress, documentId }
+      const response = await fetch('/api/createCharge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: serviceFee,
+          currency: paymentCurrency,
+          name: 'Document Payment',
+          description: `Payment for document (tier: ${fileSizeTier})`,
+          metadata: { sender: senderAddress, recipient: recipientAddress, documentId }
+        })
       });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to create charge');
       setChargeId(data.id); // store chargeId for polling
       setPaymentStatus('pending'); // set payment status to pending immediately after charge creation
       // Timer is now handled by the effect that depends on chargeId and paymentStatus
