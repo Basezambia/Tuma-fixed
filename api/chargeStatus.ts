@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const COINBASE_COMMERCE_API_KEY = process.env.COINBASE_COMMERCE_API_KEY!;
-const COINBASE_COMMERCE_API_URL = 'https://api.commerce.coinbase.com/charges';
+const COINBASE_COMMERCE_API_URL = process.env.COINBASE_COMMERCE_API_URL || 'https://api.commerce.coinbase.com/charges';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
