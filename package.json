@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "vite preview",
-    "build:vercel": "vite build --mode production",
-    "start:vercel": "node server.cjs",
-    "lint": "eslint ."
+    "build:dev": "vite build --mode development",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "api": "vercel dev api"
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",

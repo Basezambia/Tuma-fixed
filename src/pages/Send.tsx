@@ -198,9 +198,8 @@ const Send = () => {
     try {
       setPaymentStatus('processing');
       setPaymentError(null);
-      
-      // Create charge with dynamic pricing
-      const response = await fetch('/api/createCharge', {
+      // Call backend to create charge with correct amount
+      const response = await fetch('http://localhost:4000/api/createCharge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -208,54 +207,19 @@ const Send = () => {
           currency: paymentCurrency,
           name: 'Document Payment',
           description: `Payment for document (tier: ${fileSizeTier})`,
-          metadata: {
-            sender: senderAddress,
-            recipient: recipientAddress,
-            documentId,
-            fileSizeTier,
-            timestamp: new Date().toISOString()
-          }
+          metadata: { sender: senderAddress, recipient: recipientAddress, documentId }
         })
       });
-
-      // Handle response as text first to avoid JSON parsing errors
-      const textResponse = await response.text();
-      
-      if (!response.ok) {
-        const errorData = response.headers.get('content-type')?.includes('application/json') 
-          ? JSON.parse(textResponse)
-          : { error: textResponse };
-        
-        console.error('API response:', errorData);
-        throw new Error(errorData.error || errorData.details || textResponse);
-      }
-
-      // Parse JSON safely
-      let data;
-      try {
-        data = JSON.parse(textResponse);
-      } catch (parseError) {
-        console.error('Failed to parse response:', parseError);
-        throw new Error('Invalid response from server');
-      }
-
-      // Extract charge ID
-      const chargeId = data.data?.id || data.id;
-      if (!chargeId) {
-        throw new Error('No charge ID received');
-      }
-
-      // Store charge ID and set status
-      setChargeId(chargeId);
-      setPaymentStatus('pending');
-      
-      // Return the charge ID for Coinbase Commerce Checkout
-      return chargeId;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to create charge');
+      setChargeId(data.id); // store chargeId for polling
+      setPaymentStatus('pending'); // set payment status to pending immediately after charge creation
+      // Timer is now handled by the effect that depends on chargeId and paymentStatus
+      return data.id; // chargeId
     } catch (err: any) {
-      console.error('Charge creation error:', err);
       setPaymentStatus('error');
       setPaymentError(err.message || 'Failed to create charge');
-      return null;
+      throw err;
     }
   }, [serviceFee, paymentCurrency, fileSizeTier, senderAddress, recipientAddress, documentId]);
 

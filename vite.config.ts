@@ -9,12 +9,6 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  publicDir: 'public',
-  build: {
-    outDir: 'dist',
-    assetsDir: 'assets',
-    assetsInlineLimit: 4096
-  },
   plugins: [
     react(),
     // Temporarily disabled lovable-tagger as it's causing build issues

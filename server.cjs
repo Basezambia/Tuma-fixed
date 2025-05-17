@@ -3,6 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const Arweave = require('arweave');
+require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -18,11 +19,8 @@ const arweave = Arweave.init({
 // Load JWK keyfile for Arweave from env
 const jwkEnv = process.env.ARWEAVE_JWK_JSON;
 if (!jwkEnv) {
-  console.error('Missing ARWEAVE_JWK_JSON in environment variables');
-  return res.status(500).json({
-    error: 'Missing ARWEAVE_JWK_JSON',
-    details: 'Please set ARWEAVE_JWK_JSON in environment variables'
-  });
+  console.error('Missing ARWEAVE_JWK_JSON in .env');
+  process.exit(1);
 }
 const jwk = JSON.parse(jwkEnv);
 
