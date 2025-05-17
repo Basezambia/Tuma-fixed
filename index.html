@@ -7,36 +7,11 @@
     <meta name="description" content="Tuma - Secure Document Sharing with Blockchain-Powered Encryption" />
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
-    
-    <!-- Preconnect to external domains -->
-    <link rel="preconnect" href="https://api.commerce.coinbase.com">
-    <link rel="preconnect" href="https://arweave.net">
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
-    
-    <!-- Preload critical assets -->
-    <link rel="modulepreload" as="script" crossorigin href="/src/main.tsx">
   </head>
 
   <body>
     <div id="root"></div>
-    
-    <!-- Vite entry point -->
+    <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script type="module" src="/src/main.tsx"></script>
-    
-    <!-- Fallback for older browsers -->
-    <script>
-      // Check for ES modules support
-      const supportsModules = 'noModule' in HTMLScriptElement.prototype;
-      if (!supportsModules) {
-        // Load the nomodule version of the app
-        const script = document.createElement('script');
-        script.src = '/src/legacy.js';
-        script.type = 'text/javascript';
-        script.async = true;
-        document.body.appendChild(script);
-      }
-    </script>
   </body>
 </html>
