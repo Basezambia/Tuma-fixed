@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "vite preview",
     "build:vercel": "vite build --mode production",
+    "start:vercel": "node server.cjs",
     "lint": "eslint ."
   },
   "dependencies": {
