@@ -199,7 +199,8 @@ const Send = () => {
       setPaymentStatus('processing');
       setPaymentError(null);
       // Call backend to create charge with correct amount
-      const response = await fetch('http://localhost:4000/api/createCharge', {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/createCharge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
