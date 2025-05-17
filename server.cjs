@@ -17,9 +17,9 @@ const arweave = Arweave.init({
 });
 
 // Load JWK keyfile for Arweave from env
-const jwkEnv = process.env.VITE_ARWEAVE_JWK_JSON;
+const jwkEnv = process.env.ARWEAVE_JWK_JSON;
 if (!jwkEnv) {
-  console.error('Missing VITE_ARWEAVE_JWK_JSON in .env');
+  console.error('Missing ARWEAVE_JWK_JSON in .env');
   process.exit(1);
 }
 const jwk = JSON.parse(jwkEnv);
