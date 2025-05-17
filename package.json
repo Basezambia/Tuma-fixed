@@ -14,8 +14,7 @@
     "deploy:api": "vercel deploy --prebuilt",
     "start:api": "vercel start api",
     "test:api": "vercel test api",
-    "deploy": "npm run build && npm run deploy:api",
-    "api": "vercel dev api"
+    "deploy": "npm run build && npm run deploy:api"
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",
