@@ -12,7 +12,41 @@ const arweave = Arweave.init({
 });
 
 // Load JWK from environment variable (Vercel/serverless compatible)
-const ARWEAVE_OWNER_JWK = import.meta.env.VITE_ARWEAVE_JWK_JSON ? JSON.parse(import.meta.env.VITE_ARWEAVE_JWK_JSON) : null;
+// Try multiple environment variable formats to ensure compatibility
+const getArweaveJwk = () => {
+  // For client-side (Vite)
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    if (import.meta.env.VITE_ARWEAVE_JWK_JSON) {
+      try {
+        return JSON.parse(import.meta.env.VITE_ARWEAVE_JWK_JSON);
+      } catch (e) {
+        console.error('Failed to parse VITE_ARWEAVE_JWK_JSON:', e);
+      }
+    }
+  }
+  
+  // For server-side (Node.js/Vercel)
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.ARWEAVE_JWK_JSON) {
+      try {
+        return JSON.parse(process.env.ARWEAVE_JWK_JSON);
+      } catch (e) {
+        console.error('Failed to parse ARWEAVE_JWK_JSON:', e);
+      }
+    }
+    if (process.env.VITE_ARWEAVE_JWK_JSON) {
+      try {
+        return JSON.parse(process.env.VITE_ARWEAVE_JWK_JSON);
+      } catch (e) {
+        console.error('Failed to parse VITE_ARWEAVE_JWK_JSON:', e);
+      }
+    }
+  }
+  
+  return null;
+};
+
+const ARWEAVE_OWNER_JWK = getArweaveJwk();
 
 export interface FileMetadata {
   name: string;
@@ -45,30 +79,60 @@ class ArweaveService {
    */
   async loadOwnerWallet(): Promise<void> {
     try {
-      if (!ARWEAVE_OWNER_JWK) {
-        throw new Error('Missing ARWEAVE_JWK_JSON environment variable.');
+      // If we already have a wallet, don't try to load it again
+      if (this.ownerWallet) {
+        return;
       }
+      
+      // Try to get the wallet from the environment variable
+      if (!ARWEAVE_OWNER_JWK) {
+        // For direct uploads, we'll use the API endpoint instead
+        console.log('No Arweave JWK found in environment variables. Will use API for uploads.');
+        return;
+      }
+      
       this.ownerWallet = ARWEAVE_OWNER_JWK;
       console.log('Loaded Arweave owner wallet from env variable');
     } catch (error) {
       console.error('Error loading Arweave owner wallet:', error);
-      toast.error('Failed to load Arweave wallet. Please ensure ARWEAVE_JWK_JSON is set in your environment.');
+      // Don't show toast errors on initial load as it's confusing to users
+      // toast.error('Failed to load Arweave wallet. Please ensure ARWEAVE_JWK_JSON is set in your environment.');
       this.ownerWallet = null;
     }
   }
 
   /**
    * Upload a file to Arweave using the app owner's wallet (CHUNKED, with progress)
+   * or via the API endpoint if wallet is not available
    * @param file The encrypted file data (Uint8Array)
    * @param metadata File metadata
    * @param onProgress Optional callback for upload progress (0-100)
    * @returns The transaction ID
    */
   async uploadFileToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
+    // Try to load the wallet if we don't have it
     if (!this.ownerWallet) {
       await this.loadOwnerWallet();
-      if (!this.ownerWallet) throw new Error('Arweave wallet not loaded');
     }
+    
+    // If we have a wallet, use direct upload method
+    if (this.ownerWallet) {
+      return this.directUploadToArweave(file, metadata, onProgress);
+    } else {
+      // Otherwise use the API endpoint
+      return this.apiUploadToArweave(file, metadata, onProgress);
+    }
+  }
+  
+  /**
+   * Upload a file to Arweave directly using the app owner's wallet
+   * @private
+   */
+  private async directUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
+    if (!this.ownerWallet) {
+      throw new Error('Arweave wallet not loaded');
+    }
+    
     let transaction;
     try {
       transaction = await arweave.createTransaction({ data: file }, this.ownerWallet!);
@@ -133,6 +197,69 @@ class ArweaveService {
         toast.error('Failed to upload document to Arweave');
         throw error;
       }
+    }
+  }
+  
+  /**
+   * Upload a file to Arweave via the API endpoint
+   * @private
+   */
+  private async apiUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
+    try {
+      // Show initial progress
+      if (onProgress) onProgress(10);
+      
+      // Convert file to base64 for API transmission
+      const base64Data = Buffer.from(file).toString('base64');
+      
+      if (onProgress) onProgress(30); // Update progress after conversion
+      
+      // Prepare API request
+      const payload = {
+        ciphertext: base64Data,
+        metadata: {
+          'Content-Type': metadata.type,
+          'Document-Name': metadata.name,
+          'Document-Type': metadata.type,
+          'Document-Size': metadata.size.toString(),
+          'Sender': metadata.sender.toLowerCase(),
+          'Recipient': metadata.recipient.toLowerCase(),
+          'Timestamp': metadata.timestamp.toString(),
+        }
+      };
+      
+      // Add optional metadata
+      if (metadata.description) payload.metadata['Description'] = metadata.description;
+      if (metadata.iv) payload.metadata['IV'] = metadata.iv;
+      if (metadata.sha256) payload.metadata['sha256'] = metadata.sha256;
+      if (metadata.documentId) payload.metadata['Document-Id'] = metadata.documentId;
+      
+      // Make API request to our serverless function
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (onProgress) onProgress(90); // Update progress after API call
+      
+      // Handle API response
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'API upload failed');
+      }
+      
+      const data = await response.json();
+      
+      if (onProgress) onProgress(100); // Complete progress
+      
+      return data.id;
+    } catch (error) {
+      console.error('Error uploading document via API:', error);
+      toast.error('Failed to upload document: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      throw error;
     }
   }
 

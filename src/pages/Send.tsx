@@ -42,7 +42,15 @@ const Send = () => {
     return stored ? parseInt(stored, 10) : Date.now();
   });
 
-  const { address: senderAddress } = useAccount();
+  // Add error handling for useAccount
+  let senderAddress = undefined;
+  try {
+    const { address } = useAccount();
+    senderAddress = address;
+  } catch (err) {
+    console.error('Error getting account:', err);
+    senderAddress = undefined;
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -317,7 +325,14 @@ const Send = () => {
   const RECENT_RECIPIENTS_KEY = 'recentRecipients';
 
   function saveRecentRecipient(recipient: { name: string; address: string }) {
-    const existing: { name: string; address: string; lastSent?: number }[] = JSON.parse(localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]');
+    let existing: { name: string; address: string; lastSent?: number }[] = [];
+    try {
+      const raw = localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]';
+      existing = JSON.parse(raw);
+    } catch (err) {
+      console.error('Error parsing RECENT_RECIPIENTS_KEY:', err);
+      existing = [];
+    }
     // Remove duplicates
     const filtered = existing.filter((r) => r.address !== recipient.address);
     const updated = [{ ...recipient, lastSent: Date.now() }, ...filtered].slice(0, 10); // Increased limit to 10
@@ -669,7 +684,11 @@ const Send = () => {
           style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
           onPointerDownOutside={uploading ? (e) => e.preventDefault() : undefined}
           onEscapeKeyDown={uploading ? (e) => e.preventDefault() : undefined}
+          aria-describedby="payment-dialog-desc"
         >
+          <div id="payment-dialog-desc" style={{ display: 'none' }}>
+            To send this file securely, a service fee is required. The platform will cover Arweave storage costs. Only the sender and recipient will be able to access and decrypt this file.
+          </div>
           <DialogHeader className="flex flex-col items-center">
             <DialogTitle className="text-center w-full">Service Fee Payment</DialogTitle>
           </DialogHeader>

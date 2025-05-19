@@ -9,8 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "vite preview --port 3000",
-    "vercel-build": "vite build"
+    "start": "vite preview --port 3000"
   },
   "engines": {
     "node": ">=16.0.0"

@@ -1,79 +1,23 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    },
-    {
-      "src": "api/createCharge.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/chargeStatus.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/upload.js",
-      "use": "@vercel/node"
-    }
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/createCharge", "destination": "/api/createCharge.js" },
+    { "source": "/api/chargeStatus", "destination": "/api/chargeStatus.js" },
+    { "source": "/api/upload", "destination": "/api/upload.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "routes": [
+  "headers": [
     {
-      "src": "/api/createCharge",
-      "methods": ["GET", "POST", "OPTIONS"],
-      "dest": "/api/createCharge",
-      "headers": {
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
-      }
-    },
-    {
-      "src": "/api/chargeStatus",
-      "methods": ["GET", "OPTIONS"],
-      "dest": "/api/chargeStatus",
-      "headers": {
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
-      }
-    },
-    {
-      "src": "/api/upload",
-      "methods": ["POST", "OPTIONS"],
-      "dest": "/api/upload",
-      "headers": {
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET,OPTIONS,PATCH,DELETE,POST,PUT",
-        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
-      }
-    },
-    {
-      "src": "^/assets/(.*)",
-      "dest": "/assets/$1"
-    },
-    {
-      "src": "^/favicon.ico",
-      "dest": "/favicon.ico"
-    },
-    {
-      "src": "^/logo(.*)",
-      "dest": "/logo$1"
-    },
-    {
-      "src": "^/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "^/(.*)",
-      "dest": "/index.html"
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Credentials", "value": "true" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT" },
+        { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" }
+      ]
     }
   ],
   "env": {

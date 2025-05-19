@@ -1,16 +1,41 @@
 import Arweave from 'arweave';
 
-export default async function handler(req, res) {
+// Enable CORS for all routes
+const allowCors = fn => async (req, res) => {
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  return await fn(req, res);
+};
+
+const handler = async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const jwkEnv = process.env.VITE_ARWEAVE_JWK_JSON;
+  // Check for JWK in environment variables - try multiple possible env var names
+  const jwkEnv = process.env.ARWEAVE_JWK_JSON || process.env.VITE_ARWEAVE_JWK_JSON;
   if (!jwkEnv) {
     return res.status(500).json({ error: "Missing JWK in environment variables" });
   }
 
-  const jwk = JSON.parse(jwkEnv);
+  let jwk;
+  try {
+    jwk = JSON.parse(jwkEnv);
+  } catch (error) {
+    console.error('Error parsing JWK:', error);
+    return res.status(500).json({ error: "Invalid JWK format in environment variables" });
+  }
 
   const arweave = Arweave.init({
     host: "arweave.net",
@@ -21,6 +46,10 @@ export default async function handler(req, res) {
 
   try {
     const { ciphertext, metadata } = req.body;
+    if (!ciphertext) {
+      return res.status(400).json({ error: "Missing ciphertext in request body" });
+    }
+    
     const dataBuffer = Buffer.from(ciphertext, "base64");
 
     const tx = await arweave.createTransaction({ data: dataBuffer }, jwk);
@@ -36,11 +65,16 @@ export default async function handler(req, res) {
     const response = await arweave.transactions.post(tx);
 
     if (response.status === 200 || response.status === 202) {
-      res.status(200).json({ id: tx.id });
+      return res.status(200).json({ id: tx.id });
     } else {
-      res.status(500).json({ error: `Arweave response: ${response.status}` });
+      console.error(`Arweave error: ${response.status}`, response);
+      return res.status(500).json({ error: `Arweave response: ${response.status}` });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Upload error:', error);
+    return res.status(500).json({ error: error.message || 'Unknown error occurred' });
   }
-}
+};
+
+// Apply CORS to our handler
+export default allowCors(handler);

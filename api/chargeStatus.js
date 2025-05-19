@@ -1,4 +1,22 @@
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+import fetch from 'node-fetch';
+
+// Enable CORS for all routes
+const allowCors = fn => async (req, res) => {
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  return await fn(req, res);
+};
 
 // Helper function to ensure JSON response
 const jsonResponse = (res, status, data) => {
@@ -6,7 +24,7 @@ const jsonResponse = (res, status, data) => {
   return res.status(status).json(data);
 };
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   // Set response content type to JSON
   res.setHeader('Content-Type', 'application/json');
 
@@ -105,4 +123,7 @@ export default async function handler(req, res) {
       details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
-}
+};
+
+// Apply CORS to our handler
+export default allowCors(handler);
