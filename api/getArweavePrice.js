@@ -1,27 +1,27 @@
 // API endpoint to get current Arweave token price and calculate storage costs
-import axios from 'axios';
+const axios = require('axios');
 
-// Vercel serverless function format
-export default async function handler(req, res) {
-  // Set CORS headers for API route
+// Enable CORS for all routes
+const allowCors = fn => async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
-
-  // Handle OPTIONS request for CORS preflight
+  
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
+  
+  return await fn(req, res);
+};
 
-  // Only allow GET requests
+const handler = async (req, res) => {
   if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
@@ -63,4 +63,9 @@ export default async function handler(req, res) {
       message: error.message || 'Unknown error'
     });
   }
-}
+};
+
+// Apply CORS to our handler
+module.exports = allowCors(handler);
+// For backwards compatibility with ES modules
+module.exports.default = allowCors(handler);
