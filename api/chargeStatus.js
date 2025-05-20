@@ -39,8 +39,7 @@ const handler = async (req, res) => {
     }
 
     const { chargeId } = req.query;
-    // Try multiple possible environment variable names for the API key
-    const apiKey = process.env.COINBASE_COMMERCE_API_KEY || process.env.VITE_COINBASE_COMMERCE_API_KEY;
+    const apiKey = process.env.COINBASE_COMMERCE_API_KEY;
 
     // Validate chargeId parameter
     if (!chargeId) {

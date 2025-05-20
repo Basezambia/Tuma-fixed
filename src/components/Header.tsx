@@ -105,15 +105,15 @@ const Header = () => {
               </div>
               <div style={{ marginLeft: '1.5rem' }}>
                 <div className="relative group">
-                  <button 
-                    aria-label="Dark Mode Coming Soon"
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center space-x-1 text-xs font-medium"
-                    onClick={() => toast.info('Dark Mode Coming Soon!')}
+                  <Toggle 
+                    aria-label="Dark mode coming soon"
+                    className="p-2 rounded-full cursor-not-allowed opacity-70"
+                    pressed={false}
+                    onPressedChange={() => toast.info("Dark mode coming soon!")}
                   >
                     <Sun size={20} />
-                    <span>Dark Mode Coming Soon</span>
-                  </button>
-                  <div className="absolute hidden group-hover:block top-full mt-1 right-0 bg-white dark:bg-gray-800 shadow-lg rounded-md px-3 py-1 text-sm whitespace-nowrap">
+                  </Toggle>
+                  <div className="absolute top-12 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none">
                     Coming Soon
                   </div>
                 </div>
@@ -169,18 +169,15 @@ const Header = () => {
                 </Wallet>
               )}
               <div className="relative group">
-                <button 
-                  aria-label="Dark Mode Coming Soon"
-                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center space-x-1 text-xs font-medium"
-                  onClick={() => {
-                    toast.info('Dark Mode Coming Soon!');
-                    setIsMenuOpen(false); // Close mobile menu after clicking
-                  }}
+                <Toggle 
+                  aria-label="Dark mode coming soon"
+                  className="p-2 rounded-full cursor-not-allowed opacity-70"
+                  pressed={false}
+                  onPressedChange={() => toast.info("Dark mode coming soon!")}
                 >
                   <Sun size={18} />
-                  <span>Dark Mode Coming Soon</span>
-                </button>
-                <div className="absolute hidden group-hover:block top-full mt-1 right-0 bg-white dark:bg-gray-800 shadow-lg rounded-md px-3 py-1 text-sm whitespace-nowrap">
+                </Toggle>
+                <div className="absolute top-12 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none">
                   Coming Soon
                 </div>
               </div>

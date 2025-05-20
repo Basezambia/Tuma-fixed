@@ -401,43 +401,6 @@
   display: none !important;
 }
 
-/* Fix wallet modal in dark mode */
-[data-onchainkit-wallet-modal] {
-  background-color: #191919 !important;
-  color: #ffffff !important;
-  border-color: #333333 !important;
-}
-
-[data-onchainkit-wallet-modal] [data-onchainkit-wallet-modal-header],
-[data-onchainkit-wallet-modal] [data-onchainkit-wallet-modal-content],
-[data-onchainkit-wallet-modal] [data-onchainkit-wallet-modal-footer] {
-  background-color: #191919 !important;
-  color: #ffffff !important;
-  border-color: #333333 !important;
-}
-
-[data-onchainkit-wallet-modal] button,
-[data-onchainkit-wallet-modal] [role="button"] {
-  background-color: #333333 !important;
-  color: #ffffff !important;
-  border-color: #444444 !important;
-}
-
-[data-onchainkit-wallet-modal] button:hover,
-[data-onchainkit-wallet-modal] [role="button"]:hover {
-  background-color: #444444 !important;
-}
-
-[data-onchainkit-wallet-modal] h1,
-[data-onchainkit-wallet-modal] h2,
-[data-onchainkit-wallet-modal] h3,
-[data-onchainkit-wallet-modal] h4,
-[data-onchainkit-wallet-modal] p,
-[data-onchainkit-wallet-modal] span,
-[data-onchainkit-wallet-modal] div {
-  color: #ffffff !important;
-}
-
 /* Dashboard elements - dark mode fixes for purple-circled elements */
 .dark .storage-usage-section,
 .dark .wallet-info-section,

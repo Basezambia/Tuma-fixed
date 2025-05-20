@@ -15,6 +15,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
           appearance: {
             name: 'TUMA',
             logo: '/logo.png',
+            mode: 'auto',
             theme: 'default',
           },
           wallet: {

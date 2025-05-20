@@ -32,14 +32,10 @@ const ProtectedRoute = ({ element }: ProtectedRouteProps) => {
 };
 
 const AppContent = () => {
-  // Set light mode as default
+  // Detect initial theme preference
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const savedTheme = localStorage.getItem("tuma-ui-theme");
-  const initialTheme = savedTheme || "light";
-  
-  // Set light mode if not already set
-  if (!savedTheme) {
-    localStorage.setItem("tuma-ui-theme", "light");
-  }
+  const initialTheme = savedTheme || (prefersDark ? "dark" : "light");
 
   return (
     <ThemeProvider defaultTheme={initialTheme as "dark" | "light" | "system"}>
