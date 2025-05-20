@@ -348,7 +348,8 @@ const Send = () => {
       }
 
       // Validate service fee
-      if (isNaN(serviceFee) || serviceFee <= 0) {
+      const fee = Number(serviceFee);
+      if (isNaN(fee) || fee <= 0) {
         throw new Error('Invalid service fee amount');
       }
 

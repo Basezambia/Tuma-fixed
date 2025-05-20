@@ -52,7 +52,15 @@ async function parseRequestBody(req) {
 }
 
 const handler = async (req, res) => {
+  console.log('Request received:', {
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    body: req.body
+  });
+
   if (req.method !== 'POST') {
+    console.log('Method not allowed:', req.method);
     return res.status(405).json({ 
       success: false,
       error: 'Method not allowed',
@@ -64,6 +72,12 @@ const handler = async (req, res) => {
     // Try multiple possible environment variable names for the API key
     const apiKey = process.env.COINBASE_COMMERCE_API_KEY || process.env.VITE_COINBASE_COMMERCE_API_KEY;
     const apiUrl = 'https://api.commerce.coinbase.com/charges';
+
+    console.log('Environment variables:', {
+      hasCoinbaseKey: !!apiKey,
+      keyLength: apiKey ? apiKey.length : 0,
+      nodeEnv: process.env.NODE_ENV
+    });
 
     if (!apiKey) {
       console.error('Missing Coinbase Commerce API key in environment variables');
@@ -118,16 +132,30 @@ const handler = async (req, res) => {
 
     console.log('Creating charge with payload:', JSON.stringify(payload, null, 2));
 
-    // Make request to Coinbase Commerce API
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CC-Api-Key': apiKey,
-        'X-CC-Version': '2018-03-22'
-      },
-      body: JSON.stringify(payload)
-    });
+    console.log('Sending request to Coinbase Commerce API with payload:', JSON.stringify(payload, null, 2));
+    
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CC-Api-Key': apiKey,
+          'X-CC-Version': '2018-03-22'
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      console.log('Received response from Coinbase Commerce API:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Error making request to Coinbase Commerce API:', error);
+      throw error;
+    }
 
     let responseData;
     try {
