@@ -15,7 +15,6 @@ export function AppProviders({ children }: { children: ReactNode }) {
           appearance: {
             name: 'TUMA',
             logo: '/logo.png',
-            mode: 'dark', // Force dark mode for the wallet modal
             theme: 'default',
           },
           wallet: {

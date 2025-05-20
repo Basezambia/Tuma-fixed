@@ -357,38 +357,42 @@ const Send = () => {
       } else {
         throw new Error('Invalid ciphertext type');
       }
-    } catch (err) {
 
-        try {
-          const toastId = toast.loading(`Uploading ${file.name} to ${recipient.name}...`);
-          const arweaveTxId = await arweaveService.uploadFileToArweave(
-            cipherArr,
-            metadata,
-            (pct) => {
-              // Calculate overall progress based on current file's progress and completed files
-              const overallProgress = Math.round((successfulUploads / totalUploads) * 100 + (pct / totalUploads));
-              setUploadProgress(overallProgress);
-            }
-          );
-
-          successfulUploads++;
-
-          // Set the last successful upload as the displayed one
-          setArweaveTxId(arweaveTxId);
-
-          toast.success(`File ${file.name} sent to ${recipient.name}!`, { id: toastId });
-
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
-              id: arweaveTxId,
-              metadata
-            }}));
+      try {
+        const toastId = toast.loading(`Uploading ${file.name} to ${recipient.name}...`);
+        const arweaveTxId = await arweaveService.uploadFileToArweave(
+          cipherArr,
+          metadata,
+          (pct) => {
+            // Calculate overall progress based on current file's progress and completed files
+            const overallProgress = Math.round((successfulUploads / totalUploads) * 100 + (pct / totalUploads));
+            setUploadProgress(overallProgress);
           }
-        } catch (err) {
-          console.error('Upload error:', err);
-          uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
-          toast.error(`Upload failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+        );
+
+        successfulUploads++;
+
+        // Set the last successful upload as the displayed one
+        setArweaveTxId(arweaveTxId);
+
+        toast.success(`File ${file.name} sent to ${recipient.name}!`, { id: toastId });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
+            id: arweaveTxId,
+            metadata
+          }}));
         }
+      } catch (err) {
+        console.error('Upload error:', err);
+        uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+        toast.error(`Upload failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Encryption error:', err);
+      uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Encryption failed'}`);
+      toast.error(`Encryption failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+    }
       }
     }
 
@@ -718,8 +722,6 @@ const UploadNotification = ({ visible }: { visible: boolean }) => {
       )}
     </div>
   );
-}
-
-} // End of Send component
+};
 
 export default Send;
