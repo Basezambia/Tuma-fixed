@@ -326,14 +326,26 @@ const Send = () => {
         
         let cipherArr;
         let metadata;
+        
         try {
+          // Step 1: Validate inputs and encrypt file
           if (!file || !recipient.address || !senderAddress) throw new Error('Missing file or addresses');
           const buffer = await file.arrayBuffer();
           if (!fileDocumentId) throw new Error('Missing documentId for salt');
-          const { ciphertext, iv } = await encryptFileBufferHKDF(buffer, senderAddress.toLowerCase(), recipient.address.toLowerCase(), fileDocumentId);
+          
+          const { ciphertext, iv } = await encryptFileBufferHKDF(
+            buffer, 
+            senderAddress.toLowerCase(), 
+            recipient.address.toLowerCase(), 
+            fileDocumentId
+          );
+          
+          // Step 2: Calculate hash
           const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0)));
           const hashArray = Array.from(new Uint8Array(hashBuffer));
           const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          
+          // Step 3: Create metadata
           metadata = {
             name: file.name,
             type: file.type,
@@ -348,19 +360,17 @@ const Send = () => {
             chargeId: chargeId || undefined,
             documentId: fileDocumentId,
           };
-      if (typeof ciphertext === 'string') {
-        try {
-          cipherArr = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
-        } catch (e) {
-          throw new Error('Failed to convert ciphertext to Uint8Array');
-        }
-      } else {
-        throw new Error('Invalid ciphertext type');
-      }
-    } catch (err) {
-
-        try {
+          
+          // Step 4: Convert ciphertext to array
+          if (typeof ciphertext === 'string') {
+            cipherArr = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
+          } else {
+            throw new Error('Invalid ciphertext type');
+          }
+          
+          // Step 5: Upload to Arweave
           const toastId = toast.loading(`Uploading ${file.name} to ${recipient.name}...`);
+          
           const arweaveTxId = await arweaveService.uploadFileToArweave(
             cipherArr,
             metadata,
@@ -370,24 +380,27 @@ const Send = () => {
               setUploadProgress(overallProgress);
             }
           );
-
+          
+          // Step 6: Handle successful upload
           successfulUploads++;
-
+          
           // Set the last successful upload as the displayed one
           setArweaveTxId(arweaveTxId);
-
+          
           toast.success(`File ${file.name} sent to ${recipient.name}!`, { id: toastId });
-
+          
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
               id: arweaveTxId,
               metadata
             }}));
           }
+          
         } catch (err) {
-          console.error('Upload error:', err);
+          // Handle any errors during the process
+          console.error('Error processing file:', err);
           uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
-          toast.error(`Upload failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+          toast.error(`Failed to process ${file.name} for ${recipient.name}: ${err.message || 'Unknown error'}`);
         }
       }
     }
@@ -775,8 +788,6 @@ const UploadNotification = ({ visible }: { visible: boolean }) => {
       )}
     </div>
   );
-}
-
-} // End of Send component
+};
 
 export default Send;
