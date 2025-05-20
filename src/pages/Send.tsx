@@ -357,42 +357,38 @@ const Send = () => {
       } else {
         throw new Error('Invalid ciphertext type');
       }
-
-      try {
-        const toastId = toast.loading(`Uploading ${file.name} to ${recipient.name}...`);
-        const arweaveTxId = await arweaveService.uploadFileToArweave(
-          cipherArr,
-          metadata,
-          (pct) => {
-            // Calculate overall progress based on current file's progress and completed files
-            const overallProgress = Math.round((successfulUploads / totalUploads) * 100 + (pct / totalUploads));
-            setUploadProgress(overallProgress);
-          }
-        );
-
-        successfulUploads++;
-
-        // Set the last successful upload as the displayed one
-        setArweaveTxId(arweaveTxId);
-
-        toast.success(`File ${file.name} sent to ${recipient.name}!`, { id: toastId });
-
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
-            id: arweaveTxId,
-            metadata
-          }}));
-        }
-      } catch (err) {
-        console.error('Upload error:', err);
-        uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
-        toast.error(`Upload failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
-      }
     } catch (err) {
-      console.error('Encryption error:', err);
-      uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Encryption failed'}`);
-      toast.error(`Encryption failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
-    }
+
+        try {
+          const toastId = toast.loading(`Uploading ${file.name} to ${recipient.name}...`);
+          const arweaveTxId = await arweaveService.uploadFileToArweave(
+            cipherArr,
+            metadata,
+            (pct) => {
+              // Calculate overall progress based on current file's progress and completed files
+              const overallProgress = Math.round((successfulUploads / totalUploads) * 100 + (pct / totalUploads));
+              setUploadProgress(overallProgress);
+            }
+          );
+
+          successfulUploads++;
+
+          // Set the last successful upload as the displayed one
+          setArweaveTxId(arweaveTxId);
+
+          toast.success(`File ${file.name} sent to ${recipient.name}!`, { id: toastId });
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
+              id: arweaveTxId,
+              metadata
+            }}));
+          }
+        } catch (err) {
+          console.error('Upload error:', err);
+          uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+          toast.error(`Upload failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+        }
       }
     }
 
@@ -569,13 +565,70 @@ const Send = () => {
                   </div>
                 </div>
 
-                {/* ... */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Message (Optional)
+                  </label>
+                  <textarea
+                    placeholder="Add a message to the recipient..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-32 resize-none"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    disabled={sending}
+                  ></textarea>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {fileSizeTier && (
+                      <div className="flex items-center space-x-1">
+                        <span>Tier: {fileSizeTier}</span>
+                        <span>•</span>
+                        <span>Fee: {serviceFee} USDC</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    disabled={sending || files.length === 0 || recipients.length === 0}
+                  >
+                    <SendIcon className="w-5 h-5" />
+                    <span>Send</span>
+                  </button>
+                </div>
               </form>
             </div>
           </div>
 
-          <div>
-            {/* ... */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4">Pricing Tiers</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span>Tier 0 (&lt;100KB)</span>
+                <span className="font-semibold">0.05 USDC</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span>Tier 1 (100KB-10MB)</span>
+                <span className="font-semibold">0.50 USDC</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span>Tier 2 (10-20MB)</span>
+                <span className="font-semibold">1.00 USDC</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span>Tier 3 (20-50MB)</span>
+                <span className="font-semibold">2.00 USDC</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span>Tier 4 (50-100MB)</span>
+                <span className="font-semibold">Dynamic Pricing</span>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span>Tier 5 (&gt;100MB)</span>
+                <span className="font-semibold">Dynamic Pricing</span>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -722,6 +775,8 @@ const UploadNotification = ({ visible }: { visible: boolean }) => {
       )}
     </div>
   );
-};
+}
+
+} // End of Send component
 
 export default Send;
