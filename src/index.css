@@ -387,6 +387,20 @@
   color: #fff !important;
 }
 
+/* Wallet Modal Customization */
+[data-onchainkit-wallet-modal] {
+  transform: scale(0.7) !important;
+  transform-origin: center !important;
+  max-width: 70% !important;
+  margin: 0 auto !important;
+}
+
+/* Remove wallet modal logo */
+[data-onchainkit-wallet-modal] [data-onchainkit-wallet-modal-header] img,
+[data-onchainkit-wallet-modal] [data-onchainkit-wallet-modal-header] svg {
+  display: none !important;
+}
+
 /* Dashboard elements - dark mode fixes for purple-circled elements */
 .dark .storage-usage-section,
 .dark .wallet-info-section,

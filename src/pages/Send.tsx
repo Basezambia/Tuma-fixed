@@ -117,20 +117,17 @@ const Send = () => {
       let fee = null;
       const sizeMB = file.size / 1024 / 1024;
       // Pricing tiers
-      if (sizeMB < 0.1) {
-        tier = 'Tier 1 (<100KB)';
-        fee = '0.05';
-      } else if (sizeMB < 20) {
-        tier = 'Tier 2 (100KB-20MB)';
+      if (sizeMB < 20) {
+        tier = 'Tier 1 (100KB-20MB)';
         fee = '1.00';
       } else if (sizeMB < 50) {
-        tier = 'Tier 3 (20-50MB)';
+        tier = 'Tier 2 (20-50MB)';
         fee = '2.00';
       } else if (sizeMB < 100) {
-        tier = 'Tier 4 (50-100MB)';
+        tier = 'Tier 3 (50-100MB)';
         fee = '3.00';
       } else {
-        tier = 'Tier 5 (>100MB)';
+        tier = 'Tier 4 (>100MB)';
         fee = '5.00';
       }
       setFileSizeTier(tier);
