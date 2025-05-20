@@ -30,7 +30,7 @@ const handler = async (req, res) => {
       'https://api.coingecko.com/api/v3/simple/price?ids=arweave&vs_currencies=usd'
     );
     
-    const arPrice = coinGeckoResponse.data.arweave.usd;
+    const arPrice = coinGeckoResponse.data?.arweave?.usd || 0.25; // Fallback price if API fails
     
     // Fetch current Arweave network info
     const arweaveNetworkResponse = await axios.get(
@@ -38,7 +38,7 @@ const handler = async (req, res) => {
     );
     
     // Base price per byte in Winston (1 AR = 1e12 Winston)
-    const basePricePerByte = Number(arweaveNetworkResponse.data);
+    const basePricePerByte = Number(arweaveNetworkResponse.data) || 1000000000000000; // Fallback base price
     
     // Calculate price per MB in AR
     const pricePerMBInWinston = basePricePerByte * 1024 * 1024;
@@ -53,8 +53,7 @@ const handler = async (req, res) => {
       pricePerMBInAR,
       pricePerMBInUSD,
       timestamp: Date.now(),
-      // Include network difficulty factor (simplified for this implementation)
-      networkFactor: 1.0
+      networkFactor: 1.0 // Base network factor
     });
   } catch (error) {
     console.error('Error fetching Arweave pricing:', error);
