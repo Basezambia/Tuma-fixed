@@ -233,8 +233,20 @@ const Send = () => {
     ) {
       const poll = async () => {
         try {
-          const res = await fetch(`/api/chargeStatus?chargeId=${chargeId}`);
+          // Get the base URL dynamically
+          const baseUrl = window.location.origin;
+          
+          const res = await fetch(`${baseUrl}/api/chargeStatus?chargeId=${chargeId}`);
+          
+          // Check if response is ok before trying to parse JSON
+          if (!res.ok) {
+            console.error('Charge status check failed:', res.status);
+            return;
+          }
+          
           const data = await res.json();
+          console.log('Charge status response:', data);
+          
           if (data.statusName && ['PENDING', 'pending'].includes(data.statusName)) {
             setPaymentStatus('pending');
             setPaymentError(null);
@@ -250,6 +262,7 @@ const Send = () => {
             setPaymentError('Payment failed');
           }
         } catch (e: any) {
+          console.error('Error polling charge status:', e);
           // Optionally: setPaymentError(e.message);
         }
       };
@@ -264,8 +277,12 @@ const Send = () => {
     try {
       setPaymentStatus('processing');
       setPaymentError(null);
+      
+      // Get the base URL dynamically
+      const baseUrl = window.location.origin;
+      
       // Call backend to create charge with correct amount
-      const response = await fetch('/api/createCharge', {
+      const response = await fetch(`${baseUrl}/api/createCharge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -276,13 +293,23 @@ const Send = () => {
           metadata: { sender: senderAddress, recipient: recipients[0]?.address || "", documentId }
         })
       });
+      
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Charge creation failed:', response.status, errorText);
+        throw new Error(`Failed to create charge: ${response.status} ${errorText || 'Unknown error'}`);
+      }
+      
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to create charge');
+      console.log('Charge created successfully:', data);
+      
       setChargeId(data.id); // store chargeId for polling
       setPaymentStatus('pending'); // set payment status to pending immediately after charge creation
       // Timer is now handled by the effect that depends on chargeId and paymentStatus
       return data.id; // chargeId
     } catch (err: any) {
+      console.error('Error in chargeHandler:', err);
       setPaymentStatus('error');
       setPaymentError(err.message || 'Failed to create charge');
       throw err;

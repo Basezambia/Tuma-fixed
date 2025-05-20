@@ -104,19 +104,18 @@ const Header = () => {
                 </Wallet>
               </div>
               <div style={{ marginLeft: '1.5rem' }}>
-                <div className="relative">
-                  <Toggle 
-                    aria-label="Toggle theme"
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    pressed={theme === 'dark'}
-                    onPressedChange={() => {
-                      const newTheme = theme === 'dark' ? 'light' : 'dark';
-                      setTheme(newTheme);
-                      toast.success(`${newTheme.charAt(0).toUpperCase() + newTheme.slice(1)} mode enabled`);
-                    }}
+                <div className="relative group">
+                  <button 
+                    aria-label="Dark Mode Coming Soon"
+                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center space-x-1 text-xs font-medium"
+                    onClick={() => toast.info('Dark Mode Coming Soon!')}
                   >
-                    {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
-                  </Toggle>
+                    <Sun size={20} />
+                    <span>Dark Mode Coming Soon</span>
+                  </button>
+                  <div className="absolute hidden group-hover:block top-full mt-1 right-0 bg-white dark:bg-gray-800 shadow-lg rounded-md px-3 py-1 text-sm whitespace-nowrap">
+                    Coming Soon
+                  </div>
                 </div>
               </div>
             </nav>
@@ -169,20 +168,21 @@ const Header = () => {
                   </WalletDropdown>
                 </Wallet>
               )}
-              <div className="relative">
-                <Toggle 
-                  aria-label="Toggle theme"
-                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  pressed={theme === 'dark'}
-                  onPressedChange={() => {
-                    const newTheme = theme === 'dark' ? 'light' : 'dark';
-                    setTheme(newTheme);
-                    toast.success(`${newTheme.charAt(0).toUpperCase() + newTheme.slice(1)} mode enabled`);
-                    setIsMenuOpen(false); // Close mobile menu after toggling theme
+              <div className="relative group">
+                <button 
+                  aria-label="Dark Mode Coming Soon"
+                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center space-x-1 text-xs font-medium"
+                  onClick={() => {
+                    toast.info('Dark Mode Coming Soon!');
+                    setIsMenuOpen(false); // Close mobile menu after clicking
                   }}
                 >
-                  {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
-                </Toggle>
+                  <Sun size={18} />
+                  <span>Dark Mode Coming Soon</span>
+                </button>
+                <div className="absolute hidden group-hover:block top-full mt-1 right-0 bg-white dark:bg-gray-800 shadow-lg rounded-md px-3 py-1 text-sm whitespace-nowrap">
+                  Coming Soon
+                </div>
               </div>
             </div>
           </nav>
