@@ -1,4 +1,5 @@
-import fetch from 'node-fetch';
+// Use CommonJS require for better compatibility with serverless environments
+const fetch = require('node-fetch');
 
 // Enable CORS for all routes
 const allowCors = fn => async (req, res) => {
@@ -91,4 +92,6 @@ const handler = async (req, res) => {
 };
 
 // Apply CORS to our handler
-export default allowCors(handler);
+module.exports = allowCors(handler);
+// For backwards compatibility with ES modules
+module.exports.default = allowCors(handler);

@@ -272,7 +272,9 @@ class ArweaveService {
       try {
         const status = await arweave.transactions.getStatus(txId);
         if (status.status === 200 && status.confirmed) return;
-      } catch (e) {}
+      } catch (e) {
+        // Ignore errors and continue polling
+      }
       await new Promise(res => setTimeout(res, pollInterval));
     }
     throw new Error('Arweave transaction not confirmed in time');
@@ -345,12 +347,12 @@ class ArweaveService {
       }
       
       // Parse tags for metadata
-      let tags: Record<string, string> = {};
+      const tags: Record<string, string> = {};
       if (typeof tx.get === 'function') {
         // Arweave-js v2+ (transaction.get('tags'))
         const tagArr = tx.get('tags');
         if (Array.isArray(tagArr)) {
-          tagArr.forEach((tag: any) => {
+          tagArr.forEach((tag: { get: (name: string, options: { decode: boolean, string: boolean }) => string }) => {
             const key = tag.get('name', { decode: true, string: true });
             const value = tag.get('value', { decode: true, string: true });
             tags[key] = value;
@@ -358,7 +360,7 @@ class ArweaveService {
         }
       } else if (Array.isArray((tx as any).tags)) {
         // Arweave-js v1 (transaction.tags)
-        (tx as any).tags.forEach((tag: any) => {
+        (tx as { tags: Array<{ name: Uint8Array; value: Uint8Array }> }).tags.forEach((tag: { name: Uint8Array; value: Uint8Array }) => {
           const key = tag.name ? arweave.utils.bufferToString(tag.name) : '';
           const value = tag.value ? arweave.utils.bufferToString(tag.value) : '';
           tags[key] = value;

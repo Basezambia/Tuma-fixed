@@ -8,10 +8,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 3000,
+    fs: {
+      // Allow serving files from one level up to the project root
+      allow: ['..'],
+    },
     proxy: {
       // Proxy API requests to serverless functions during development
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3001',  // Use a different port for API server
         changeOrigin: true,
         rewrite: (path) => path,
       },

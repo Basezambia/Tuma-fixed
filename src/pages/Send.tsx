@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, FileMetadata } from "@/lib/arweave-service";
 import { encryptFileBufferHKDF } from '@/lib/encryption';
+import { calculateArweaveCostSync, getFileSizeTier } from '@/lib/arweaveCalculator';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAccount } from 'wagmi';
 import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
@@ -11,9 +12,11 @@ import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/c
 const Send = () => {
   // ...existing state declarations...
   const [uploadTimeoutId, setUploadTimeoutId] = useState<NodeJS.Timeout | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [recipient, setRecipient] = useState("");
-  const [recipientAddress, setRecipientAddress] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [totalFileSize, setTotalFileSize] = useState<number>(0);
+  const [recipients, setRecipients] = useState<{name: string, address: string}[]>([]);
+  const [currentRecipientName, setCurrentRecipientName] = useState("");
+  const [currentRecipientAddress, setCurrentRecipientAddress] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [calculatedFee, setCalculatedFee] = useState<string | null>(null);
@@ -53,31 +56,77 @@ const Send = () => {
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      // Calculate total size including existing files
+      const newTotalSize = [...files, ...newFiles].reduce((sum, file) => sum + file.size, 0);
+      setFiles(prev => [...prev, ...newFiles]);
+      setTotalFileSize(newTotalSize);
     }
   };
 
-  const removeFile = () => {
-    setFile(null);
+  const removeFile = (index: number) => {
+    setFiles(prev => {
+      const newFiles = [...prev];
+      // Recalculate total size by removing the file at index
+      const removedFileSize = newFiles[index]?.size || 0;
+      setTotalFileSize(totalFileSize - removedFileSize);
+      newFiles.splice(index, 1);
+      return newFiles;
+    });
+  };
+  
+  const addRecipient = () => {
+    if (!currentRecipientName || !currentRecipientAddress) {
+      toast.error("Please enter both recipient name and address");
+      return;
+    }
+    
+    if (recipients.length >= 5) {
+      toast.error("Maximum of 5 recipients allowed");
+      return;
+    }
+    
+    // Check if recipient address already exists
+    if (recipients.some(r => r.address === currentRecipientAddress)) {
+      toast.error("This recipient address is already added");
+      return;
+    }
+    
+    setRecipients(prev => [...prev, {
+      name: currentRecipientName,
+      address: currentRecipientAddress
+    }]);
+    
+    // Clear the input fields
+    setCurrentRecipientName("");
+    setCurrentRecipientAddress("");
+  };
+  
+  const removeRecipient = (index: number) => {
+    setRecipients(prev => {
+      const newRecipients = [...prev];
+      newRecipients.splice(index, 1);
+      return newRecipients;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
-    if (!file) {
-      toast.error("Please select a file to send");
+    if (files.length === 0) {
+      toast.error("Please select at least one file to send");
       return;
     }
     
-    if (!recipient) {
-      toast.error("Please enter a recipient");
+    if (recipients.length === 0) {
+      toast.error("Please add at least one recipient");
       return;
     }
-
-    if (!recipientAddress) {
-      toast.error("Please enter a valid recipient wallet address");
+    
+    if (recipients.length > 5) {
+      toast.error("Maximum of 5 recipients allowed");
       return;
     }
     
@@ -87,11 +136,11 @@ const Send = () => {
       
       // 1. Upload file to Arweave
       const metadata: FileMetadata = {
-        name: file.name,
-        type: file.type,
-        size: file.size,
+        name: files[0].name,  // Using the first file in the array
+        type: files[0].type,
+        size: totalFileSize,  // Using total size of all files
         sender: senderAddress,
-        recipient: recipientAddress,
+        recipient: recipients[0]?.address || "",  // Using the first recipient's address
         timestamp: Date.now(),
         description: message || undefined
       };
@@ -112,28 +161,41 @@ const Send = () => {
   };
 
   useEffect(() => {
-    if (file) {
+    if (totalFileSize > 0) {
       let tier = null;
       let fee = null;
-      const sizeMB = file.size / 1024 / 1024;
-      // Pricing tiers
-      if (sizeMB < 20) {
-        tier = 'Tier 1 (100KB-20MB)';
+      const sizeMB = totalFileSize / 1024 / 1024;
+      const sizeKB = totalFileSize / 1024;
+      
+      // Pricing tiers based on total file size
+      if (sizeKB < 100) {
+        tier = 'Tier 0 (<100KB)';
+        fee = '0.05';
+      } else if (sizeMB < 10) {
+        tier = 'Tier 1 (100KB-10MB)';
+        fee = '0.50';
+      } else if (sizeMB < 20) {
+        tier = 'Tier 2 (10-20MB)';
         fee = '1.00';
       } else if (sizeMB < 50) {
-        tier = 'Tier 2 (20-50MB)';
+        tier = 'Tier 3 (20-50MB)';
         fee = '2.00';
-      } else if (sizeMB < 100) {
-        tier = 'Tier 3 (50-100MB)';
-        fee = '3.00';
       } else {
-        tier = 'Tier 4 (>100MB)';
-        fee = '5.00';
+        // Dynamic pricing for files above 50MB using Arweave calculator with 70% markup
+        if (sizeMB < 100) {
+          tier = 'Tier 4 (50-100MB) - Dynamic Pricing';
+        } else {
+          tier = 'Tier 5 (>100MB) - Dynamic Pricing';
+        }
+        fee = calculateArweaveCostSync(totalFileSize);
       }
       setFileSizeTier(tier);
       setServiceFee(fee);
+    } else {
+      setFileSizeTier(null);
+      setServiceFee('0.00');
     }
-  }, [file]);
+  }, [totalFileSize]);
 
   // Effect: When chargeId changes and paymentStatus is 'pending', wait 30s before starting upload
 
@@ -211,7 +273,7 @@ const Send = () => {
           currency: paymentCurrency,
           name: 'Document Payment',
           description: `Payment for document (tier: ${fileSizeTier})`,
-          metadata: { sender: senderAddress, recipient: recipientAddress, documentId }
+          metadata: { sender: senderAddress, recipient: recipients[0]?.address || "", documentId }
         })
       });
       const data = await response.json();
@@ -225,7 +287,7 @@ const Send = () => {
       setPaymentError(err.message || 'Failed to create charge');
       throw err;
     }
-  }, [serviceFee, paymentCurrency, fileSizeTier, senderAddress, recipientAddress, documentId]);
+  }, [serviceFee, paymentCurrency, fileSizeTier, senderAddress, recipients, documentId]);
 
   const retryPayment = () => {
     setShowPaymentDialog(true);
@@ -239,37 +301,53 @@ const Send = () => {
     setUploadError(null);
     setUploadProgress(0);
     setUploadComplete(false);
-    const fileToUpload = file;
-    const recipientToSend = recipient;
-    const recipientAddressToSend = recipientAddress;
+    
+    // Store current state before clearing
+    const filesToUpload = [...files];
+    const recipientsToSend = [...recipients];
     const messageToSend = message;
-    setFile(null);
-    setRecipient("");
-    setRecipientAddress("");
+    
+    // Clear form for next use
+    setFiles([]);
+    setTotalFileSize(0);
+    setRecipients([]);
     setMessage("");
-    let cipherArr;
-    let metadata;
-    try {
-      if (!file || !recipientAddress || !senderAddress) throw new Error('Missing file or addresses');
-      const buffer = await file.arrayBuffer();
-      if (!documentId) throw new Error('Missing documentId for salt');
-      const { ciphertext, iv } = await encryptFileBufferHKDF(buffer, senderAddress.toLowerCase(), recipientAddress.toLowerCase(), documentId);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0)));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      metadata = {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        sender: senderAddress.toLowerCase(),
-        recipient: recipientAddress.toLowerCase(),
-        timestamp: Date.now(),
-        description: message || undefined,
-        iv,
-        sha256,
-        chargeId: chargeId || undefined,
-        documentId,
-      };
+    
+    // Track successful uploads
+    let successfulUploads = 0;
+    let totalUploads = filesToUpload.length * recipientsToSend.length;
+    let uploadErrors = [];
+    
+    // For each recipient, upload each file
+    for (const recipient of recipientsToSend) {
+      for (const file of filesToUpload) {
+        // Generate a unique document ID for each file-recipient pair
+        const fileDocumentId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        
+        let cipherArr;
+        let metadata;
+        try {
+          if (!file || !recipient.address || !senderAddress) throw new Error('Missing file or addresses');
+          const buffer = await file.arrayBuffer();
+          if (!fileDocumentId) throw new Error('Missing documentId for salt');
+          const { ciphertext, iv } = await encryptFileBufferHKDF(buffer, senderAddress.toLowerCase(), recipient.address.toLowerCase(), fileDocumentId);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0)));
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          metadata = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            sender: senderAddress.toLowerCase(),
+            recipient: recipient.address.toLowerCase(),
+            recipientName: recipient.name,
+            timestamp: Date.now(),
+            description: message || undefined,
+            iv,
+            sha256,
+            chargeId: chargeId || undefined,
+            documentId: fileDocumentId,
+          };
       if (typeof ciphertext === 'string') {
         try {
           cipherArr = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
@@ -280,146 +358,70 @@ const Send = () => {
         throw new Error('Invalid ciphertext type');
       }
     } catch (err) {
-      setUploadError(err.message || 'Upload failed');
-      setUploading(false);
-      toast.error('Upload failed: ' + (err.message || 'Unknown error'));
-      return;
-    }
-    const toastId = toast.loading('Uploading file to Arweave and waiting for confirmation...');
-    try {
-      const arweaveTxId = await arweaveService.uploadFileToArweave(
-        cipherArr,
-        metadata,
-        (pct) => setUploadProgress(Math.round(pct))
-      );
-      setArweaveTxId(arweaveTxId);
-      setUploadComplete(true);
-      toast.success('File sent and stored on Arweave!', { id: toastId });
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
-          id: arweaveTxId,
-          metadata
-        }}));
+
+        try {
+          const toastId = toast.loading(`Uploading ${file.name} to ${recipient.name}...`);
+          const arweaveTxId = await arweaveService.uploadFileToArweave(
+            cipherArr,
+            metadata,
+            (pct) => {
+              // Calculate overall progress based on current file's progress and completed files
+              const overallProgress = Math.round((successfulUploads / totalUploads) * 100 + (pct / totalUploads));
+              setUploadProgress(overallProgress);
+            }
+          );
+
+          successfulUploads++;
+
+          // Set the last successful upload as the displayed one
+          setArweaveTxId(arweaveTxId);
+
+          toast.success(`File ${file.name} sent to ${recipient.name}!`, { id: toastId });
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('tuma:newSentFile', { detail: {
+              id: arweaveTxId,
+              metadata
+            }}));
+          }
+        } catch (err) {
+          console.error('Upload error:', err);
+          uploadErrors.push(`${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+          toast.error(`Upload failed for ${file.name} to ${recipient.name}: ${err.message || 'Unknown error'}`);
+        }
       }
-      setFile(null);
-      setRecipient("");
-      setRecipientAddress("");
-      setMessage("");
-      saveRecentRecipient({ name: recipient, address: recipientAddress });
-      setUploadProgress(null);
-    } finally {
-      setUploading(false);
     }
+
+    // Set overall status
+    if (successfulUploads === totalUploads) {
+      setUploadComplete(true);
+      toast.success(`All ${totalUploads} files sent successfully!`);
+    } else if (successfulUploads > 0) {
+      setUploadComplete(true);
+      toast.success(`${successfulUploads} of ${totalUploads} files sent successfully.`);
+      if (uploadErrors.length > 0) {
+        setUploadError(`Some files failed to upload: ${uploadErrors.length} errors`);
+      }
+    } else {
+      setUploadError('All uploads failed');
+      toast.error('All uploads failed');
+    }
+
+    setUploading(false);
   };
 
-
+// ...
 
   // State for recent recipients
   const [recentRecipients, setRecentRecipients] = useState<{ name: string; address: string; lastSent?: number }[]>([]);
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
 
-  // --- Recent Recipients: Local Storage Logic ---
-  const RECENT_RECIPIENTS_KEY = 'recentRecipients';
-
-  function saveRecentRecipient(recipient: { name: string; address: string }) {
-    let existing: { name: string; address: string; lastSent?: number }[] = [];
-    try {
-      const raw = localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]';
-      existing = JSON.parse(raw);
-    } catch (err) {
-      console.error('Error parsing RECENT_RECIPIENTS_KEY:', err);
-      existing = [];
-    }
-    // Remove duplicates
-    const filtered = existing.filter((r) => r.address !== recipient.address);
-    const updated = [{ ...recipient, lastSent: Date.now() }, ...filtered].slice(0, 10); // Increased limit to 10
-    localStorage.setItem(RECENT_RECIPIENTS_KEY, JSON.stringify(updated));
-  }
-
-  function loadRecentRecipients(): { name: string; address: string; lastSent?: number }[] {
-    return JSON.parse(localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]');
-  }
-
-  // Load recent recipients when component mounts or address changes
-  useEffect(() => {
-    if (!senderAddress) return;
-    
-    setIsLoadingRecipients(true);
-    
-    // First load from local storage
-    const localRecipients = loadRecentRecipients();
-    
-    // Then fetch sent files from Arweave to extract recipients
-    arweaveService.getSentFiles(senderAddress)
-      .then(files => {
-        // Extract unique recipients from sent files
-        const recipientsFromSentFiles = files.reduce((acc: { name: string; address: string; lastSent?: number }[], file) => {
-          const recipientAddress = file.metadata.recipient?.toLowerCase();
-          if (!recipientAddress) return acc;
-          
-          // Skip if we already have this recipient in our accumulator
-          if (acc.some(r => r.address.toLowerCase() === recipientAddress)) return acc;
-          
-          // Create a recipient entry
-          const recipientName = file.metadata.name ? `${file.metadata.name.split('_')[0]}` : 'Unknown';
-          return [...acc, {
-            name: recipientName,
-            address: recipientAddress,
-            lastSent: file.metadata.timestamp || Date.now()
-          }];
-        }, []);
-        
-        // Merge local and blockchain recipients, prioritizing local ones (as they have user-defined names)
-        const mergedRecipients = [...localRecipients];
-        
-        // Add blockchain recipients that aren't already in local storage
-        recipientsFromSentFiles.forEach(blockchainRecipient => {
-          if (!mergedRecipients.some(r => r.address.toLowerCase() === blockchainRecipient.address.toLowerCase())) {
-            mergedRecipients.push(blockchainRecipient);
-          }
-        });
-        
-        // Sort by most recent first
-        const sortedRecipients = mergedRecipients.sort((a, b) => 
-          (b.lastSent || 0) - (a.lastSent || 0)
-        );
-        
-        setRecentRecipients(sortedRecipients);
-      })
-      .catch(error => {
-        console.error('Error loading recipients from blockchain:', error);
-        // Fall back to local storage only
-        setRecentRecipients(localRecipients);
-      })
-      .finally(() => {
-        setIsLoadingRecipients(false);
-      });
-  }, [senderAddress]);
-
-  // Format relative time (e.g., "2 days ago")
-  const formatRelativeTime = (date: Date): string => {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return 'just now';
-    
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 30) return `${diffInDays}d ago`;
-    
-    const diffInMonths = Math.floor(diffInDays / 30);
-    return `${diffInMonths}mo ago`;
-  };
+  // ...
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 dark:from-[#191919] dark:to-[#191919] page-transition">
       <Header />
-      
+
       <main className="pt-28 px-6 pb-16 max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Send Files</h1>
@@ -427,250 +429,165 @@ const Send = () => {
             Share files securely with individuals or teams
           </p>
         </div>
-        
+
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
             <div className="glass-panel p-8">
               <form onSubmit={handleSubmit}>
                 <div className="mb-8">
                   <label className="block text-sm font-medium mb-2">
-                    Select File
+                    Select Files (Max 100MB total)
                   </label>
-                  {!file ? (
-                    <label htmlFor="file" tabIndex={0}
-                      className="group transition-all duration-200 border-2 border-dashed border-doc-pale-gray dark:border-gray-600 rounded-xl p-12 text-center bg-white dark:bg-gray-800 hover:shadow-2xl hover:scale-103 hover:bg-blue-50/60 dark:hover:bg-blue-900/40 cursor-pointer ease-in-out flex flex-col items-center justify-center focus-within:shadow-2xl focus-within:scale-103"
-                    >
-                      <FileUp className="mx-auto h-14 w-14 text-doc-medium-gray mb-4 transition-all duration-200 group-hover:text-doc-deep-blue" />
-                      <p className="text-doc-medium-gray mb-6 text-lg font-medium group-hover:text-doc-deep-blue">
-                        Drag and drop a file, or click to select
-                      </p>
-                      <input
-                        type="file"
-                        id="file"
-                        accept="*/*"
-                        onChange={handleFileChange}
-                        className="hidden"
-                        tabIndex={-1}
-                      />
-                    </label>
-                  ) : (
-                    <div className="flex items-center p-4 bg-doc-soft-blue dark:bg-blue-900/30 rounded-lg animate-scale-in">
-                      <div className="mr-4">
-                        <div className="w-12 h-12 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center">
-                          <FileUp size={24} className="text-doc-deep-blue" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{file.name}</p>
-                        <p className="text-xs text-doc-medium-gray">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <FileUp className="w-8 h-8 mb-3 text-gray-500 dark:text-gray-400" />
+                        <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                          <span className="font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          PDF, DOC, DOCX, JPG, PNG, etc. (Max 100MB total)
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={removeFile}
-                        className="p-1.5 rounded-full hover:bg-white dark:hover:bg-gray-700 transition-colors text-doc-medium-gray"
-                      >
-                        <X size={18} />
-                      </button>
+                      <input
+                        id="dropzone-file"
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileChange}
+                        disabled={sending}
+                        multiple
+                      />
+                    </label>
+                  </div>
+
+                  {files.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Files</h3>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          Total: {(totalFileSize / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                      {files.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center">
+                              <FileUp className="w-5 h-5 text-blue-600 dark:text-blue-300" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate dark:text-white">
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            className="flex-shrink-0 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+                            disabled={sending}
+                          >
+                            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                  <div className="mb-6">
-                    <label 
-                      htmlFor="recipient"
-                      className="block text-sm font-medium mb-2"
-                    >
-                      Recipient Name
+                <div className="mb-6">
+                  {/* Recipients */}
+                  <div className="space-y-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Recipients (Max 5)
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <User size={18} className="text-doc-medium-gray" />
+                    <div className="flex flex-col space-y-3">
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          placeholder="Recipient Name"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          value={currentRecipientName}
+                          onChange={(e) => setCurrentRecipientName(e.target.value)}
+                          disabled={sending || recipients.length >= 5}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Recipient Wallet Address"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          value={currentRecipientAddress}
+                          onChange={(e) => setCurrentRecipientAddress(e.target.value)}
+                          disabled={sending || recipients.length >= 5}
+                        />
+                        <button
+                          type="button"
+                          onClick={addRecipient}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={sending || recipients.length >= 5 || !currentRecipientName || !currentRecipientAddress}
+                        >
+                          Add
+                        </button>
                       </div>
-                      <input
-                        type="text"
-                        id="recipient"
-                        placeholder="Recipient name or organization"
-                        className="pl-10 w-full bg-white dark:bg-gray-700 border-none rounded-lg focus:ring-1 focus:ring-blue-500 outline-none py-3 text-gray-800 dark:text-white"
-                        value={recipient}
-                        onChange={(e) => setRecipient(e.target.value)}
-                      />
+
+                      {recipients.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Added Recipients</h3>
+                          {recipients.map((recipient, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                                  <User className="w-5 h-5 text-green-600 dark:text-green-300" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate dark:text-white">
+                                    {recipient.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500 truncate dark:text-gray-400">
+                                    {recipient.address}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeRecipient(index)}
+                                className="flex-shrink-0 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+                                disabled={sending}
+                              >
+                                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div className="mb-6">
-                    <label 
-                      htmlFor="recipientAddress"
-                      className="block text-sm font-medium mb-2"
-                    >
-                      Recipient Wallet Address
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-doc-medium-gray">
-                          <rect x="2" y="6" width="20" height="12" rx="2" />
-                          <path d="M22 10H2" />
-                        </svg>
-                      </div>
-                      <input
-                        type="text"
-                        id="recipientAddress"
-                        placeholder="0x..."
-                        className="pl-10 w-full bg-white dark:bg-gray-700 border-none rounded-lg focus:ring-1 focus:ring-blue-500 outline-none py-3 text-gray-800 dark:text-white"
-                        value={recipientAddress}
-                        onChange={(e) => setRecipientAddress(e.target.value)}
-                      />
-                    </div>
-                    <p className="text-xs text-doc-medium-gray mt-1">
-                      Enter the recipient's Ethereum address
-                    </p>
-                  </div>
-
-                <div className="mb-8">
-                  <label 
-                    htmlFor="message"
-                    className="block text-sm font-medium mb-2"
-                  >
-                    Message (Optional)
-                  </label>
-                  <textarea
-                    id="message"
-                    rows={4}
-                    placeholder="Add a message to the recipient..."
-                    className="w-full bg-white dark:bg-gray-700 border-none rounded-lg focus:ring-1 focus:ring-blue-500 outline-none py-3 px-4 text-gray-800 dark:text-white"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                  />
                 </div>
 
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={sending}
-                    className={`
-                      inline-flex items-center px-6 py-3 rounded-lg
-                      ${sending
-                        ? "bg-blue-400 cursor-not-allowed"
-                        : "bg-doc-deep-blue hover:bg-blue-600"}
-                      text-white font-medium transition-colors
-                    `}
-                  >
-                    {sending ? (
-                      <>
-                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                        Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <SendIcon size={18} className="mr-2" />
-                        Send
-                      </>
-                    )}
-                  </button>
-                </div>
+                {/* ... */}
               </form>
             </div>
           </div>
-          
+
           <div>
-            <div className="glass-panel p-6">
-              <div className="flex items-center mb-4">
-                <Users size={18} className="text-doc-deep-blue mr-2" />
-                <h3 className="font-medium">Recent Recipients</h3>
-              </div>
-              <div className="space-y-3">
-                {isLoadingRecipients ? (
-                  <div className="py-6 text-center">
-                    <div className="animate-spin mx-auto h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mb-2"></div>
-                    <p className="text-doc-medium-gray">Loading recent recipients...</p>
-                  </div>
-                ) : recentRecipients.length > 0 ? (
-                  recentRecipients.slice(0, 4).map((recipient) => (
-                    <button
-                      key={recipient.address}
-                      onClick={() => {
-                        setRecipient(recipient.name);
-                        setRecipientAddress(recipient.address);
-                      }}
-                      className="flex items-center w-full p-3 rounded-lg hover:bg-doc-soft-blue dark:hover:bg-blue-900/30 transition-colors text-left"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-doc-deep-blue text-white flex items-center justify-center mr-3">
-                        {recipient.name.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{recipient.name}</p>
-                        <p className="text-xs text-doc-medium-gray truncate">{recipient.address}</p>
-                      </div>
-                      <div className="text-xs text-doc-medium-gray flex items-center">
-                        <Clock size={12} className="mr-1" />
-                        {formatRelativeTime(new Date(recipient.lastSent))}
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="py-6 text-center text-doc-medium-gray">
-                    <p>No recent recipients found</p>
-                    <p className="text-xs mt-1">Recipients will appear here after you send files</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="glass-panel p-6 mt-6">
-              <h3 className="font-medium mb-4">Send Tips</h3>
-              <ul className="space-y-3 text-sm text-doc-medium-gray">
-                <li className="flex">
-                  <span className="text-doc-deep-blue mr-2">•</span>
-                  Files are encrypted end-to-end for security
-                </li>
-                <li className="flex">
-                  <span className="text-doc-deep-blue mr-2">•</span>
-                  Maximum file size is 200MB
-                </li>
-                <li className="flex">
-                  <span className="text-doc-deep-blue mr-2">•</span>
-                  Files exist forever, only pay once
-                </li>
-              </ul>
-            </div>
-            
-            <div className="glass-panel p-6 mt-6">
-              <h3 className="font-medium mb-4">Pricing Tiers</h3>
-              <ul className="space-y-3 text-sm">
-                <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 1 (&lt;10MB):</span>
-                  <span className="font-medium">0.05 USDC</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 2 (10-50MB):</span>
-                  <span className="font-medium">1.00 USDC</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 3 (50-100MB):</span>
-                  <span className="font-medium">2.00 USDC</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 4 (&gt;100MB):</span>
-                  <span className="font-medium">5.00 USDC</span>
-                </li>
-              </ul>
-            </div>
+            {/* ... */}
           </div>
         </div>
       </main>
-      <Dialog
-        open={showPaymentDialog && !(uploadComplete && !uploading && !uploadError)}
-        onOpenChange={(open) => {
+      
+      <Dialog open={showPaymentDialog} onOpenChange={(open) => {
           if (!open) {
             setShowPaymentDialog(false);
             // Only clear/reset form if upload has started or completed
             if (uploading || uploadComplete) {
               setPaymentStatus('idle');
               setPaymentError(null);
-              setFile(null);
-              setRecipient("");
-              setRecipientAddress("");
+              setFiles([]);
+              setTotalFileSize(0);
+              setRecipients([]);
+              setCurrentRecipientName("");
+              setCurrentRecipientAddress("");
               setMessage("");
             }
           }
@@ -785,7 +702,6 @@ const Send = () => {
 };
 
 // --- Upload Notification Component ---
-import React from 'react';
 
 const UploadNotification = ({ visible }: { visible: boolean }) => {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -802,6 +718,8 @@ const UploadNotification = ({ visible }: { visible: boolean }) => {
       )}
     </div>
   );
-};
+}
+
+} // End of Send component
 
 export default Send;

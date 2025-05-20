@@ -1,4 +1,5 @@
-import Arweave from 'arweave';
+// Use dynamic import for better compatibility with serverless environments
+const Arweave = require('arweave');
 
 // Enable CORS for all routes
 const allowCors = fn => async (req, res) => {
@@ -77,4 +78,6 @@ const handler = async (req, res) => {
 };
 
 // Apply CORS to our handler
-export default allowCors(handler);
+module.exports = allowCors(handler);
+// For backwards compatibility with ES modules
+module.exports.default = allowCors(handler);
