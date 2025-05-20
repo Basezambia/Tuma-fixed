@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { FileUp, Send as SendIcon, User, Users, X, AlertCircle, Coins, Clock, Bell } from "lucide-react";
+import { useState, useEffect, useCallback } from 'react';
+import { FileUp, Send as SendIcon, User, Users, X, AlertCircle, Coins, Clock, Bell } from 'lucide-react';
 import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, FileMetadata } from "@/lib/arweave-service";
@@ -47,6 +47,8 @@ const Send = () => {
   const [sentFiles, setSentFiles] = useState<SentFileInfo[]>([]);
   const [uploadComplete, setUploadComplete] = useState(false);
 
+  // Charge handler for Coinbase Commerce is defined below in the file
+
   // Free tier usage tracking
   const [freeTierUsage, setFreeTierUsage] = useState<number>(() => {
     const stored = localStorage.getItem('freeTierUsage');
@@ -57,15 +59,17 @@ const Send = () => {
     return stored ? parseInt(stored, 10) : Date.now();
   });
 
-  // Add error handling for useAccount
-  let senderAddress = undefined;
-  try {
-    const { address } = useAccount();
-    senderAddress = address;
-  } catch (err) {
-    console.error('Error getting account:', err);
-    senderAddress = undefined;
-  }
+  // Get sender address from wallet
+  const { address: senderAddress, isConnected } = useAccount();
+  
+  // Optional: Add an effect to log connection status changes
+  useEffect(() => {
+    if (isConnected) {
+      console.log('Wallet connected:', senderAddress);
+    } else {
+      console.log('Wallet disconnected');
+    }
+  }, [isConnected, senderAddress]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -78,9 +82,10 @@ const Send = () => {
     setFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
   };
   
-  const getTotalFileSize = (): number => {
+  // Calculate total size of all files in bytes
+  const getTotalFileSize = useCallback((): number => {
     return files.reduce((total, file) => total + file.size, 0);
-  };
+  }, [files]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -317,34 +322,120 @@ const Send = () => {
   }, [paymentStatus, chargeId, uploading, uploadComplete, uploadError]);
 
   // Real Coinbase Commerce checkout handler
-  const chargeHandler = useCallback(async () => {
+  const chargeHandler = useCallback(async (): Promise<string> => {
     try {
+      // Validate inputs
+      if (!senderAddress) {
+        throw new Error('Wallet not connected. Please connect your wallet to proceed with payment.');
+      }
+
+      if (files.length === 0) {
+        throw new Error('No files selected for upload');
+      }
+
+      // Validate recipients
+      const validRecipients = recipients
+        .filter(r => {
+          // Ensure both name and address are provided and not just whitespace
+          const hasValidName = r.name && r.name.trim().length > 0;
+          const hasValidAddress = r.address && r.address.trim().length > 0;
+          return hasValidName && hasValidAddress;
+        })
+        .map(r => r.address);
+      
+      if (validRecipients.length === 0) {
+        throw new Error('Please provide at least one valid recipient with both name and wallet address');
+      }
+
+      // Validate service fee
+      if (isNaN(serviceFee) || serviceFee <= 0) {
+        throw new Error('Invalid service fee amount');
+      }
+
+      // Update UI state
       setPaymentStatus('processing');
       setPaymentError(null);
-      // Call backend to create charge with correct amount
-      const response = await fetch('/api/createCharge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: serviceFee,
-          currency: paymentCurrency,
-          name: 'Document Payment',
-          description: `Payment for document (tier: ${fileSizeTier})`,
-          metadata: { sender: senderAddress, recipients: recipients.filter(r => r.name && r.address).map(r => r.address), documentId }
-        })
+      
+      console.log('Initiating payment with:', {
+        amount: serviceFee,
+        currency: paymentCurrency,
+        fileCount: files.length,
+        recipientCount: validRecipients.length,
+        sender: senderAddress
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to create charge');
-      setChargeId(data.id); // store chargeId for polling
-      setPaymentStatus('pending'); // set payment status to pending immediately after charge creation
-      // Timer is now handled by the effect that depends on chargeId and paymentStatus
-      return data.id; // chargeId
-    } catch (err: any) {
+
+      try {
+        // Call backend to create charge with correct amount
+        const response = await fetch('/api/createCharge', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Request-ID': documentId // Add request ID for tracking
+          },
+          body: JSON.stringify({
+            amount: serviceFee,
+            currency: paymentCurrency,
+            name: 'Tuma File Upload',
+            description: `Payment for uploading ${files.length} file(s) to Arweave`,
+            metadata: { 
+              sender: senderAddress, 
+              recipients: validRecipients, 
+              documentId,
+              fileCount: files.length,
+              totalSize: getTotalFileSize(),
+              timestamp: new Date().toISOString()
+            }
+          })
+        });
+
+        // Check for HTTP errors
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Charge creation failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          });
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Validate response data
+        if (!data || !data.success || !data.data || !data.data.id) {
+          console.error('Invalid response from payment service:', data);
+          throw new Error('Invalid response from payment service');
+        }
+
+        console.log('Charge created successfully:', data.data.id);
+        
+        // Store charge ID for polling and return it for the Checkout component
+        setChargeId(data.data.id);
+        setPaymentStatus('pending');
+        
+        return data.data.id;
+        
+      } catch (error) {
+        console.error('Error during charge creation:', error);
+        throw new Error(`Failed to create payment: ${error.message}`);
+      }
+      
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      const errorMessage = error.message || 'Failed to process payment';
       setPaymentStatus('error');
-      setPaymentError(err.message || 'Failed to create charge');
-      throw err;
+      setPaymentError(errorMessage);
+      throw new Error(errorMessage);
     }
-  }, [serviceFee, paymentCurrency, fileSizeTier, senderAddress, recipients, documentId]);
+  }, [
+    senderAddress, 
+    recipients, 
+    serviceFee, 
+    paymentCurrency, 
+    documentId, 
+    files.length, 
+    getTotalFileSize
+  ]);
 
   const retryPayment = () => {
     setShowPaymentDialog(true);
@@ -353,7 +444,21 @@ const Send = () => {
   };
 
   const handlePostPaymentUpload = async () => {
-    if (files.length === 0 || !documentId) return;
+    // Validate inputs
+    if (files.length === 0) {
+      setUploadError('No files selected for upload');
+      return;
+    }
+    
+    if (!documentId) {
+      setUploadError('Missing document ID');
+      return;
+    }
+    
+    if (!senderAddress) {
+      setUploadError('Wallet not connected');
+      return;
+    }
     
     try {
       setSending(true);
@@ -370,7 +475,23 @@ const Send = () => {
       let completedUploads = 0;
       
       // Process each file for each recipient
-      for (const recipient of recipients.filter(r => r.name && r.address)) {
+      const validRecipients = recipients.filter(r => r.name && r.name.trim() && r.address && r.address.trim());
+      
+      if (validRecipients.length === 0) {
+        throw new Error('No valid recipients provided');
+      }
+      
+      // Show progress dialog with initial state
+      setShowProgressDialog(true);
+      setUploading(true);
+      setUploadError(null);
+      setUploadComplete(false);
+      
+      console.log(`Starting upload of ${files.length} files to ${validRecipients.length} recipients`);
+      
+      for (const recipient of validRecipients) {
+        console.log(`Processing recipient: ${recipient.name} (${recipient.address})`);
+        
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const fileDocId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -683,119 +804,156 @@ const Send = () => {
                   )}
                 </div>
 
-                  <div className="mb-6">
-                    <div className="flex justify-between items-center mb-2">
+                  <div className="mb-8">
+                    <div className="flex justify-between items-center mb-3">
                       <label className="block text-sm font-medium">
-                        Recipients (up to 5)
+                        Recipients
                       </label>
+                      <span className="text-xs text-doc-medium-gray">
+                        {recipients.length} of 5 added
+                      </span>
+                    </div>
+                    
+                    {/* Recipient Chips */}
+                    <div className="flex flex-wrap gap-2 mb-3 min-h-[44px] items-start">
+                      {recipients.map((recipient, index) => (
+                        <div 
+                          key={index}
+                          className="inline-flex items-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200 rounded-full py-1.5 pl-3 pr-2 text-sm font-medium transition-all duration-200 hover:bg-blue-100 dark:hover:bg-blue-800/40"
+                        >
+                          <span className="mr-2">
+                            {recipient.name || 'Unnamed'}
+                            {recipient.address && (
+                              <span className="ml-1 text-blue-500 dark:text-blue-300">
+                                • {recipient.address.substring(0, 6)}...{recipient.address.slice(-4)}
+                              </span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setRecipients(recipients.filter((_, i) => i !== index));
+                            }}
+                            className="ml-1 p-0.5 rounded-full hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
+                            aria-label="Remove recipient"
+                          >
+                            <X size={14} className="text-blue-500 dark:text-blue-300" />
+                          </button>
+                        </div>
+                      ))}
+                      
                       {recipients.length < 5 && (
                         <button
                           type="button"
                           onClick={() => setRecipients([...recipients, {name: "", address: ""}])}
-                          className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors"
+                          className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors group"
                         >
-                          Add Recipient
+                          <span className="inline-flex items-center justify-center w-6 h-6 mr-1 bg-blue-100 dark:bg-blue-900/40 rounded-full group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 dark:text-blue-400">
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                          </span>
+                          Add recipient
                         </button>
                       )}
                     </div>
                     
-                    <div className="space-y-4">
-                      {recipients.map((recipient, index) => (
-                        <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                          <div className="flex justify-between items-center mb-3">
-                            <h4 className="text-sm font-medium">Recipient {index + 1}</h4>
-                            {recipients.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setRecipients(recipients.filter((_, i) => i !== index))}
-                                className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
-                              >
-                                <X size={16} />
-                              </button>
-                            )}
-                          </div>
-                          
-                          <div className="mb-3">
-                            <label 
-                              htmlFor={`recipient-name-${index}`}
-                              className="block text-xs font-medium mb-1"
-                            >
-                              Name
-                            </label>
-                            <div className="relative">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <User size={16} className="text-doc-medium-gray" />
-                              </div>
-                              <input
-                                type="text"
-                                id={`recipient-name-${index}`}
-                                placeholder="Recipient name or organization"
-                                className="pl-10 w-full bg-white dark:bg-gray-700 border-none rounded-lg focus:ring-1 focus:ring-blue-500 outline-none py-2 text-gray-800 dark:text-white text-sm"
-                                value={recipient.name}
-                                onChange={(e) => {
-                                  const newRecipients = [...recipients];
-                                  newRecipients[index].name = e.target.value;
-                                  setRecipients(newRecipients);
-                                }}
-                              />
+                    {/* Recipient Form */}
+                    {recipients.length > 0 && (
+                      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-200">
+                        <div className="mb-4">
+                          <label 
+                            htmlFor="recipient-name"
+                            className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+                          >
+                            Recipient Name
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <User size={16} className="text-gray-400" />
                             </div>
+                            <input
+                              type="text"
+                              id="recipient-name"
+                              placeholder="Enter name or organization"
+                              className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                              value={recipients[0]?.name || ''}
+                              onChange={(e) => {
+                                const newRecipients = [...recipients];
+                                newRecipients[0].name = e.target.value;
+                                setRecipients(newRecipients);
+                              }}
+                            />
                           </div>
-                          
-                          <div>
-                            <label 
-                              htmlFor={`recipient-address-${index}`}
-                              className="block text-xs font-medium mb-1"
-                            >
-                              Wallet Address
-                            </label>
-                            <div className="relative">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-doc-medium-gray">
-                                  <rect x="2" y="6" width="20" height="12" rx="2" />
-                                  <path d="M22 10H2" />
-                                </svg>
-                              </div>
-                              <input
-                                type="text"
-                                id={`recipient-address-${index}`}
-                                placeholder="0x..."
-                                className="pl-10 w-full bg-white dark:bg-gray-700 border-none rounded-lg focus:ring-1 focus:ring-blue-500 outline-none py-2 text-gray-800 dark:text-white text-sm"
-                                value={recipient.address}
-                                onChange={(e) => {
-                                  const newRecipients = [...recipients];
-                                  newRecipients[index].address = e.target.value;
-                                  setRecipients(newRecipients);
-                                }}
-                              />
+                        </div>
+                        
+                        <div>
+                          <label 
+                            htmlFor="recipient-address"
+                            className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+                          >
+                            Wallet Address
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                <path d="M22 10H2" />
+                              </svg>
                             </div>
+                            <input
+                              type="text"
+                              id="recipient-address"
+                              placeholder="0x... or arweave:..."
+                              className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm font-mono transition-all duration-200"
+                              value={recipients[0]?.address || ''}
+                              onChange={(e) => {
+                                const newRecipients = [...recipients];
+                                newRecipients[0].address = e.target.value;
+                                setRecipients(newRecipients);
+                              }}
+                            />
                           </div>
-                          
-                          {index === 0 && (
-                            <div className="mt-3">
-                              <button
-                                type="button"
-                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                onClick={() => {
-                                  if (recentRecipients.length > 0) {
+                        </div>
+                        
+                        {/* Recent Recipients */}
+                        {recentRecipients.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                              Recent Recipients
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                              {recentRecipients.slice(0, 3).map((recent, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => {
                                     const newRecipients = [...recipients];
-                                    newRecipients[index] = {
-                                      name: recentRecipients[0].name,
-                                      address: recentRecipients[0].address
+                                    newRecipients[0] = {
+                                      name: recent.name,
+                                      address: recent.address
                                     };
                                     setRecipients(newRecipients);
-                                  }
-                                }}
-                              >
-                                Use recent recipient
-                              </button>
+                                  }}
+                                  className="inline-flex items-center text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 rounded-full transition-colors text-gray-700 dark:text-gray-200"
+                                >
+                                  <span className="w-2 h-2 rounded-full bg-green-400 mr-2"></span>
+                                  {recent.name}
+                                  <span className="ml-1.5 text-gray-400 dark:text-gray-400 font-mono">
+                                    {recent.address.substring(0, 4)}...{recent.address.slice(-4)}
+                                  </span>
+                                </button>
+                              ))}
                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
-                    <p className="text-xs text-doc-medium-gray mt-2">
-                      Each recipient will receive all selected files
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+                      Each recipient will receive all selected files. Maximum 5 recipients.
                     </p>
                   </div>
 
@@ -1040,28 +1198,67 @@ const Send = () => {
           {!uploading && !uploadComplete && (
             <>
               {showPaymentDialog && (
-                <Checkout
-                  chargeHandler={chargeHandler}
-                  onStatus={(status) => {
-                    const { statusName } = status;
-                    if (statusName === 'success') {
-                      setPaymentStatus('success');
-                      setPaymentError(null);
-                      setShowPaymentDialog(false);
-                      handlePostPaymentUpload();
-                    } else if (statusName === 'error') {
-                      setPaymentStatus('error');
-                      setPaymentError('Payment failed');
-                    } else if (statusName === 'pending') {
-                      setPaymentStatus('processing');
-                    } else if (statusName === 'init' || statusName === 'fetchingData' || statusName === 'ready') {
-                      setPaymentStatus('processing');
-                    }
-                  }}
-                >
-                  <CheckoutButton coinbaseBranded className="w-full py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors mb-2" />
-                  <CheckoutStatus />
-                </Checkout>
+                <div className="w-full">
+                  <Checkout
+                    chargeHandler={async () => {
+                      try {
+                        console.log('Initiating payment...');
+                        const chargeId = await chargeHandler();
+                        console.log('Payment initiated with charge ID:', chargeId);
+                        return chargeId;
+                      } catch (error) {
+                        console.error('Error in chargeHandler:', error);
+                        throw error;
+                      }
+                    }}
+                    onStatus={(status: { statusName: string; statusData?: any }) => {
+                      console.log('Payment status update:', status);
+                      const { statusName, statusData } = status;
+                      
+                      try {
+                        if (statusName === 'success') {
+                          console.log('Payment successful, starting upload...');
+                          setPaymentStatus('success');
+                          setPaymentError(null);
+                          setShowPaymentDialog(false);
+                          handlePostPaymentUpload().catch(err => {
+                            console.error('Error in post-payment upload:', err);
+                            setUploadError('Upload failed after successful payment: ' + (err.message || 'Unknown error'));
+                          });
+                        } else if (statusName === 'error') {
+                          console.error('Payment error:', status);
+                          setPaymentStatus('error');
+                          setPaymentError(
+                            (statusData as { message?: string })?.message || 
+                            'Payment failed. Please try again.'
+                          );
+                        } else if (statusName === 'pending') {
+                          console.log('Payment pending...');
+                          setPaymentStatus('processing');
+                        } else if (['init', 'fetchingData', 'ready'].includes(statusName)) {
+                          console.log('Payment processing...');
+                          setPaymentStatus('processing');
+                        }
+                      } catch (error) {
+                        console.error('Error in payment status handler:', error);
+                        setPaymentStatus('error');
+                        setPaymentError('An unexpected error occurred');
+                      }
+                    }}
+                  >
+                    <CheckoutButton 
+                      coinbaseBranded 
+                      className="w-full py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors mb-2"
+                      disabled={!isConnected}
+                    />
+                    <CheckoutStatus />
+                  </Checkout>
+                  {!isConnected && (
+                    <div className="text-red-500 text-sm mt-2 text-center">
+                      Please connect your wallet to proceed with payment
+                    </div>
+                  )}
+                </div>
               )}
               {paymentStatus === 'error' as typeof paymentStatus && (
                 <div className="text-red-600 flex flex-col">

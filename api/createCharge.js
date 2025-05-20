@@ -19,9 +19,45 @@ const allowCors = fn => async (req, res) => {
   return await fn(req, res);
 };
 
+// Helper function to parse request body
+async function parseRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    if (req.body) {
+      if (typeof req.body === 'string') {
+        try {
+          resolve(JSON.parse(req.body));
+        } catch (e) {
+          reject(new Error('Invalid JSON in request body'));
+        }
+      } else if (typeof req.body === 'object') {
+        resolve(req.body);
+      } else {
+        reject(new Error('Unexpected request body format'));
+      }
+    } else {
+      let data = '';
+      req.on('data', chunk => {
+        data += chunk;
+      });
+      req.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Invalid JSON in request body'));
+        }
+      });
+      req.on('error', reject);
+    }
+  });
+}
+
 const handler = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false,
+      error: 'Method not allowed',
+      message: 'Only POST requests are allowed'
+    });
   }
 
   try {
@@ -32,17 +68,34 @@ const handler = async (req, res) => {
     if (!apiKey) {
       console.error('Missing Coinbase Commerce API key in environment variables');
       return res.status(500).json({ 
-        error: 'Server configuration error: Missing API key',
-        details: 'Please configure COINBASE_COMMERCE_API_KEY in environment variables'
+        success: false,
+        error: 'Server configuration error',
+        message: 'Missing Coinbase Commerce API key in environment variables',
+        details: 'Please configure COINBASE_COMMERCE_API_KEY in your environment variables'
+      });
+    }
+
+    // Parse request body
+    let body;
+    try {
+      body = await parseRequestBody(req);
+    } catch (e) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request',
+        message: 'Could not parse request body',
+        details: e.message
       });
     }
 
     // Validate request body
-    const { amount, currency = 'USD', name = 'Document Payment', description = 'Payment for document upload', metadata = {} } = req.body;
+    const { amount, currency = 'USD', name = 'Document Payment', description = 'Payment for document upload', metadata = {} } = body;
 
-    if (!amount) {
+    if (typeof amount === 'undefined' || amount === null || amount === '') {
       return res.status(400).json({ 
-        error: 'Missing required parameter: amount',
+        success: false,
+        error: 'Validation error',
+        message: 'Missing required parameter: amount',
         details: 'Please provide a valid amount for the charge'
       });
     }
@@ -52,44 +105,69 @@ const handler = async (req, res) => {
       name,
       description,
       pricing_type: 'fixed_price',
-      local_price: { amount: amount.toString(), currency },
-      metadata
+      local_price: { 
+        amount: parseFloat(amount).toFixed(2), 
+        currency 
+      },
+      metadata: {
+        ...metadata,
+        service: 'tuma-file-upload',
+        timestamp: new Date().toISOString()
+      }
     };
+
+    console.log('Creating charge with payload:', JSON.stringify(payload, null, 2));
 
     // Make request to Coinbase Commerce API
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CC-Api-Key': apiKey
+        'X-CC-Api-Key': apiKey,
+        'X-CC-Version': '2018-03-22'
       },
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-      try {
-        const errorData = await response.json();
-        console.error('Coinbase Commerce API error:', errorData);
-        return res.status(response.status).json({ 
-          error: errorData.message || 'Failed to create charge',
-          details: errorData.details || errorData.error || 'Please check your API key and try again'
-        });
-      } catch (parseError) {
-        console.error('Failed to parse error response:', parseError);
-        return res.status(response.status).json({ 
-          error: 'Invalid response from Coinbase Commerce API',
-          details: 'Please check your API key and try again'
-        });
-      }
+    let responseData;
+    try {
+      responseData = await response.text();
+      responseData = responseData ? JSON.parse(responseData) : {};
+    } catch (e) {
+      console.error('Failed to parse response:', responseData);
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid response',
+        message: 'Failed to parse response from Coinbase Commerce API',
+        details: responseData || 'No response data'
+      });
     }
 
-    const data = await response.json();
-    res.status(200).json(data);
+    if (!response.ok) {
+      console.error('Coinbase Commerce API error:', responseData);
+      return res.status(response.status).json({
+        success: false,
+        error: responseData.error?.type || 'API Error',
+        message: responseData.error?.message || 'Failed to create charge',
+        details: responseData.error || 'Unknown error occurred'
+      });
+    }
+
+    console.log('Successfully created charge:', responseData.data?.id);
+    
+    // Return success response
+    return res.status(200).json({
+      success: true,
+      data: responseData.data
+    });
+
   } catch (error) {
     console.error('Charge creation error:', error);
     return res.status(500).json({ 
-      error: error.message || 'Internal server error',
-      details: 'Please check your internet connection and try again'
+      success: false,
+      error: 'Internal Server Error',
+      message: 'An unexpected error occurred',
+      details: error.message || 'No additional error details available'
     });
   }
 };
