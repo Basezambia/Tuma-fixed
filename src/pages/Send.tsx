@@ -366,6 +366,22 @@ const Send = () => {
       });
 
       try {
+        // Prepare the request body
+        const requestBody = {
+          amount: serviceFee,
+          currency: paymentCurrency,
+          name: 'Tuma File Upload',
+          description: `Payment for uploading ${files.length} file(s) to Arweave`,
+          metadata: { 
+            sender: senderAddress, 
+            recipients: validRecipients, 
+            documentId,
+            fileCount: files.length,
+            totalSize: getTotalFileSize(),
+            timestamp: new Date().toISOString()
+          }
+        };
+        
         // Call backend to create charge with correct amount
         const response = await fetch('/api/createCharge', {
           method: 'POST',
@@ -373,30 +389,32 @@ const Send = () => {
             'Content-Type': 'application/json',
             'X-Request-ID': documentId // Add request ID for tracking
           },
-          body: JSON.stringify({
-            amount: serviceFee,
-            currency: paymentCurrency,
-            name: 'Tuma File Upload',
-            description: `Payment for uploading ${files.length} file(s) to Arweave`,
-            metadata: { 
-              sender: senderAddress, 
-              recipients: validRecipients, 
-              documentId,
-              fileCount: files.length,
-              totalSize: getTotalFileSize(),
-              timestamp: new Date().toISOString()
-            }
-          })
+          body: JSON.stringify(requestBody)
         });
 
         // Check for HTTP errors
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          let errorData;
+          try {
+            errorData = await response.json();
+          } catch (e) {
+            const text = await response.text();
+            console.error('Failed to parse error response:', { status: response.status, statusText: response.statusText, text });
+            throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+          }
+          
           console.error('Charge creation failed:', {
             status: response.status,
             statusText: response.statusText,
-            error: errorData
+            headers: Object.fromEntries(response.headers.entries()),
+            error: errorData,
+            request: {
+              url: '/api/createCharge',
+              method: 'POST',
+              body: requestBody
+            }
           });
+          
           throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
         }
 

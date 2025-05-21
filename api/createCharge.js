@@ -35,32 +35,23 @@ async function parseRequestBody(req) {
         reject(new Error('Unexpected request body format'));
       }
     } else {
-      let data = '';
+      let body = '';
       req.on('data', chunk => {
-        data += chunk;
+        body += chunk.toString();
       });
       req.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          resolve(body ? JSON.parse(body) : {});
         } catch (e) {
           reject(new Error('Invalid JSON in request body'));
         }
       });
-      req.on('error', reject);
     }
   });
 }
 
 const handler = async (req, res) => {
-  console.log('Request received:', {
-    method: req.method,
-    url: req.url,
-    headers: req.headers,
-    body: req.body
-  });
-
   if (req.method !== 'POST') {
-    console.log('Method not allowed:', req.method);
     return res.status(405).json({ 
       success: false,
       error: 'Method not allowed',
@@ -69,138 +60,101 @@ const handler = async (req, res) => {
   }
 
   try {
-    // Try multiple possible environment variable names for the API key
-    const apiKey = process.env.COINBASE_COMMERCE_API_KEY || process.env.VITE_COINBASE_COMMERCE_API_KEY;
-    const apiUrl = 'https://api.commerce.coinbase.com/charges';
-
-    console.log('Environment variables:', {
-      hasCoinbaseKey: !!apiKey,
-      keyLength: apiKey ? apiKey.length : 0,
-      nodeEnv: process.env.NODE_ENV
-    });
-
-    if (!apiKey) {
-      console.error('Missing Coinbase Commerce API key in environment variables');
-      return res.status(500).json({ 
-        success: false,
-        error: 'Server configuration error',
-        message: 'Missing Coinbase Commerce API key in environment variables',
-        details: 'Please configure COINBASE_COMMERCE_API_KEY in your environment variables'
-      });
-    }
-
     // Parse request body
-    let body;
-    try {
-      body = await parseRequestBody(req);
-    } catch (e) {
+    const body = await parseRequestBody(req);
+    
+    // Extract required fields
+    const { 
+      amount, 
+      currency = 'USD',
+      name = 'Tuma File Transfer',
+      description = 'File transfer service',
+      metadata = {}
+    } = body;
+
+    // Validate required fields
+    if (!amount || isNaN(amount) || amount <= 0) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid request',
-        message: 'Could not parse request body',
-        details: e.message
+        error: 'Invalid amount',
+        message: 'A valid payment amount is required'
       });
     }
 
-    // Validate request body
-    const { amount, currency = 'USD', name = 'Document Payment', description = 'Payment for document upload', metadata = {} } = body;
-
-    if (typeof amount === 'undefined' || amount === null || amount === '') {
-      return res.status(400).json({ 
+    // Get API key from environment variables
+    const apiKey = process.env.COINBASE_COMMERCE_API_KEY;
+    if (!apiKey) {
+      console.error('Missing Coinbase Commerce API key in environment variables');
+      return res.status(500).json({
         success: false,
-        error: 'Validation error',
-        message: 'Missing required parameter: amount',
-        details: 'Please provide a valid amount for the charge'
+        error: 'Server configuration error',
+        message: 'Payment service is not properly configured'
       });
     }
 
-    // Prepare request payload
+    // Prepare the request to Coinbase Commerce API
     const payload = {
       name,
       description,
       pricing_type: 'fixed_price',
-      local_price: { 
-        amount: parseFloat(amount).toFixed(2), 
-        currency 
+      local_price: {
+        amount: amount.toString(),
+        currency: currency.toUpperCase()
       },
       metadata: {
         ...metadata,
-        service: 'tuma-file-upload',
-        timestamp: new Date().toISOString()
+        service: 'tuma-file-transfer'
       }
     };
 
     console.log('Creating charge with payload:', JSON.stringify(payload, null, 2));
 
-    console.log('Sending request to Coinbase Commerce API with payload:', JSON.stringify(payload, null, 2));
-    
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CC-Api-Key': apiKey,
-          'X-CC-Version': '2018-03-22'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      console.log('Received response from Coinbase Commerce API:', {
+    // Make request to Coinbase Commerce API
+    const response = await fetch('https://api.commerce.coinbase.com/charges', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CC-Api-Key': apiKey,
+        'X-CC-Version': '2018-03-22'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // Handle response
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Failed to create charge:', {
         status: response.status,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
+        error: errorData
       });
       
-      return response;
-    } catch (error) {
-      console.error('Error making request to Coinbase Commerce API:', error);
-      throw error;
-    }
-
-    let responseData;
-    try {
-      responseData = await response.text();
-      responseData = responseData ? JSON.parse(responseData) : {};
-    } catch (e) {
-      console.error('Failed to parse response:', responseData);
-      return res.status(500).json({
-        success: false,
-        error: 'Invalid response',
-        message: 'Failed to parse response from Coinbase Commerce API',
-        details: responseData || 'No response data'
-      });
-    }
-
-    if (!response.ok) {
-      console.error('Coinbase Commerce API error:', responseData);
       return res.status(response.status).json({
         success: false,
-        error: responseData.error?.type || 'API Error',
-        message: responseData.error?.message || 'Failed to create charge',
-        details: responseData.error || 'Unknown error occurred'
+        error: 'Payment processing failed',
+        message: errorData.message || 'Failed to process payment',
+        details: errorData
       });
     }
 
-    console.log('Successfully created charge:', responseData.data?.id);
+    const data = await response.json();
     
-    // Return success response
+    // Return the charge information
     return res.status(200).json({
       success: true,
-      data: responseData.data
+      data: data.data
     });
 
   } catch (error) {
-    console.error('Charge creation error:', error);
-    return res.status(500).json({ 
+    console.error('Error in createCharge:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Internal Server Error',
-      message: 'An unexpected error occurred',
-      details: error.message || 'No additional error details available'
+      error: 'Internal server error',
+      message: error.message || 'An unexpected error occurred',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
 
-// Apply CORS to our handler
+// Export the CORS-wrapped handler
 module.exports = allowCors(handler);
-// For backwards compatibility with ES modules
-module.exports.default = allowCors(handler);
