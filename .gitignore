@@ -25,6 +25,3 @@ dist-ssr
 
 .vercel
 
-# Extension folder
-/extension
-/extension/**
