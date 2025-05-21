@@ -392,33 +392,70 @@ const Send = () => {
           body: JSON.stringify(requestBody)
         });
 
-        // Check for HTTP errors
-        if (!response.ok) {
-          let errorData;
-          try {
-            errorData = await response.json();
-          } catch (e) {
-            const text = await response.text();
-            console.error('Failed to parse error response:', { status: response.status, statusText: response.statusText, text });
-            throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+        // Clone the response before reading it
+        const responseClone = response.clone();
+        
+        try {
+          // First try to parse as JSON
+          const data = await response.json();
+          
+          // If we get here, the response was successful
+          // Validate response data
+          if (!data || !data.success || !data.data || !data.data.id) {
+            console.error('Invalid response from payment service:', data);
+            throw new Error('Invalid response from payment service');
           }
           
-          console.error('Charge creation failed:', {
-            status: response.status,
-            statusText: response.statusText,
-            headers: Object.fromEntries(response.headers.entries()),
-            error: errorData,
-            request: {
-              url: '/api/createCharge',
-              method: 'POST',
-              body: requestBody
-            }
-          });
+          console.log('Charge created successfully:', data.data.id);
           
-          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+          // Store charge ID for polling and return it for the Checkout component
+          setChargeId(data.data.id);
+          setPaymentStatus('pending');
+          
+          return data.data.id;
+          
+        } catch (jsonError) {
+          // If JSON parsing fails, handle as error response
+          if (!response.ok) {
+            let errorData;
+            try {
+              // Try to parse error response as JSON
+              errorData = await responseClone.json();
+            } catch (e) {
+              // If JSON parsing fails, try to get text response
+              try {
+                const text = await responseClone.text();
+                console.error('Failed to parse error response:', { 
+                  status: response.status, 
+                  statusText: response.statusText, 
+                  text 
+                });
+                throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+              } catch (textError) {
+                console.error('Failed to read error response:', textError);
+                throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+              }
+            }
+            
+            console.error('Charge creation failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              headers: Object.fromEntries(response.headers.entries()),
+              error: errorData,
+              request: {
+                url: '/api/createCharge',
+                method: 'POST',
+                body: requestBody
+              }
+            });
+            
+            throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+          } else {
+            // If response is ok but JSON parsing failed, it's a different error
+            console.error('Failed to parse successful response:', jsonError);
+            throw new Error('Invalid response format from payment service');
+          }
         }
-
-        const data = await response.json();
         
         // Validate response data
         if (!data || !data.success || !data.data || !data.data.id) {
