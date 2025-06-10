@@ -53,13 +53,16 @@ export interface FileMetadata {
   type: string;
   size: number;
   sender: string;
-  recipient: string;
+  recipient: string; // Keep for backward compatibility
+  recipients?: string[]; // Add array for multiple recipients
   timestamp: number;
   description?: string;
   iv?: string; // Add IV for decryption
   sha256?: string; // Add SHA-256 hash for integrity verification
   chargeId?: string; // Add chargeId for payment gating
   documentId?: string; // Add documentId for HKDF salt
+  parentFolderId?: string; // Add parentFolderId for folder structure
+  fileCount?: number; // Add fileCount for folders
 }
 
 export interface StoredFile {
@@ -142,15 +145,25 @@ class ArweaveService {
       transaction.addTag('Document-Type', metadata.type);
       transaction.addTag('Document-Size', metadata.size.toString());
       transaction.addTag('Sender', metadata.sender.toLowerCase());
-      transaction.addTag('Recipient', metadata.recipient.toLowerCase());
       transaction.addTag('Timestamp', metadata.timestamp.toString());
+      
+      // Handle multiple recipients
+      if (metadata.recipients && Array.isArray(metadata.recipients)) {
+        metadata.recipients.forEach((recipient, index) => {
+          transaction.addTag(`Recipient-${index}`, recipient.toLowerCase());
+        });
+      } else {
+        // Fallback to single recipient for backward compatibility
+        transaction.addTag('Recipient-0', metadata.recipient.toLowerCase());
+      }
+      
       if (metadata.description) transaction.addTag('Description', metadata.description);
       if (metadata.iv) transaction.addTag('IV', metadata.iv);
-      if (metadata.sha256) transaction.addTag('sha256', metadata.sha256); // Always add sha256 tag for integrity
-      if (metadata.documentId) transaction.addTag('Document-Id', metadata.documentId); // Add documentId tag
-
+      if (metadata.sha256) transaction.addTag('sha256', metadata.sha256);
+      if (metadata.documentId) transaction.addTag('Document-Id', metadata.documentId);
+  
       await arweave.transactions.sign(transaction, this.ownerWallet!);
-
+  
       // Use chunked uploader for reliability and progress
       const uploader = await arweave.transactions.getUploader(transaction);
       let lastPct = 0;
@@ -206,15 +219,12 @@ class ArweaveService {
    */
   private async apiUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
     try {
-      // Show initial progress
       if (onProgress) onProgress(10);
       
-      // Convert file to base64 for API transmission
       const base64Data = Buffer.from(file).toString('base64');
       
-      if (onProgress) onProgress(30); // Update progress after conversion
+      if (onProgress) onProgress(30);
       
-      // Prepare API request
       const payload = {
         ciphertext: base64Data,
         metadata: {
@@ -223,10 +233,18 @@ class ArweaveService {
           'Document-Type': metadata.type,
           'Document-Size': metadata.size.toString(),
           'Sender': metadata.sender.toLowerCase(),
-          'Recipient': metadata.recipient.toLowerCase(),
           'Timestamp': metadata.timestamp.toString(),
         }
       };
+      
+      // Handle multiple recipients
+      if (metadata.recipients && Array.isArray(metadata.recipients)) {
+        metadata.recipients.forEach((recipient, index) => {
+          payload.metadata[`Recipient-${index}`] = recipient.toLowerCase();
+        });
+      } else {
+        payload.metadata['Recipient-0'] = metadata.recipient.toLowerCase();
+      }
       
       // Add optional metadata
       if (metadata.description) payload.metadata['Description'] = metadata.description;
@@ -367,19 +385,32 @@ class ArweaveService {
         });
       }
       
+      // In the getFile method, around line 380-400, update the metadata parsing:
       const metadata: FileMetadata = {
         name: tags['Document-Name'] || '',
         type: tags['Document-Type'] || '',
         size: Number(tags['Document-Size']) || 0,
         sender: tags['Sender'] || '',
-        recipient: tags['Recipient'] || '',
+        recipient: tags['Recipient-0'] || tags['Recipient'] || '', // Fallback to old format
+        recipients: [], // Initialize recipients array
         timestamp: Number(tags['Timestamp']) || 0,
         description: tags['Description'],
         iv: tags['IV'],
         sha256: tags['sha256'] || tags['SHA256'] || undefined,
         documentId: tags['Document-Id'] || undefined,
       };
-
+      
+      // Parse multiple recipients
+      const recipients = [];
+      for (let i = 0; i < 10; i++) {
+        const recipientTag = tags[`Recipient-${i}`];
+        if (recipientTag) {
+          recipients.push(recipientTag);
+        }
+      }
+      if (recipients.length > 0) {
+        metadata.recipients = recipients;
+      }
       return { data, metadata };
     } catch (error) {
       console.error('Error fetching file from Arweave:', error);
@@ -395,35 +426,53 @@ class ArweaveService {
   async getReceivedFiles(address: string): Promise<StoredFile[]> {
     if (!address) return [];
     try {
-      const query = {
-        query: `{
-          transactions(
-            tags: [
-              { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-              { name: "Recipient", values: ["${address.toLowerCase()}"] }
-            ]
-            first: 100
-          ) {
-            edges {
-              node {
-                id
-                tags {
-                  name
-                  value
-                }
+      // Build dynamic query for up to 10 recipients
+      const recipientQueries = Array.from({ length: 10 }, (_, i) => `
+        transactions${i}: transactions(
+          tags: [
+            { name: "App-Name", values: ["TUMA-Document-Exchange"] },
+            { name: "Recipient-${i}", values: ["${address.toLowerCase()}"] }
+          ]
+          first: 100
+        ) {
+          edges {
+            node {
+              id
+              tags {
+                name
+                value
               }
             }
           }
-        }`
+        }
+      `).join('');
+      
+      const query = {
+        query: `{${recipientQueries}}`
       };
+      
       const res = await fetch('https://arweave.net/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(query)
       });
+      
       const json = await res.json();
-      const edges = json.data.transactions.edges;
-      return edges.map((edge: any) => {
+      
+      // Combine all results
+      const allEdges = [];
+      for (let i = 0; i < 10; i++) {
+        if (json.data[`transactions${i}`]) {
+          allEdges.push(...json.data[`transactions${i}`].edges);
+        }
+      }
+      
+      // Remove duplicates
+      const uniqueEdges = allEdges.filter((edge, index, self) => 
+        index === self.findIndex(e => e.node.id === edge.node.id)
+      );
+      
+      return uniqueEdges.map((edge: any) => {
         const tags: Record<string, string> = {};
         edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
         const metadata: FileMetadata = {
@@ -431,12 +480,14 @@ class ArweaveService {
           type: tags['Document-Type'] || '',
           size: Number(tags['Document-Size']) || 0,
           sender: tags['Sender'] || '',
-          recipient: tags['Recipient'] || '',
+          recipient: tags['Recipient-0'] || '', // Use first recipient for display
           timestamp: Number(tags['Timestamp']) || 0,
           description: tags['Description'],
           iv: tags['IV'],
           sha256: tags['sha256'] || tags['SHA256'] || undefined,
+          documentId: tags['Document-Id'] || undefined
         };
+        
         return { id: edge.node.id, metadata };
       });
     } catch (error) {
@@ -484,16 +535,29 @@ class ArweaveService {
       return edges.map((edge: any) => {
         const tags: Record<string, string> = {};
         edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
+        
+        // Extract all recipients from Recipient-X tags
+        const recipients: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          const recipientTag = `Recipient-${i}`;
+          if (tags[recipientTag]) {
+            recipients.push(tags[recipientTag]);
+          }
+        }
+        
         const metadata: FileMetadata = {
           name: tags['Document-Name'] || '',
           type: tags['Document-Type'] || '',
           size: Number(tags['Document-Size']) || 0,
           sender: tags['Sender'] || '',
-          recipient: tags['Recipient'] || '',
+          recipient: tags['Recipient'] || tags['Recipient-0'] || '', // Fallback to Recipient-0
+          recipients: recipients.length > 0 ? recipients : undefined, // Add recipients array
           timestamp: Number(tags['Timestamp']) || 0,
           description: tags['Description'],
           iv: tags['IV'],
           sha256: tags['sha256'] || tags['SHA256'] || undefined,
+          chargeId: tags['Charge-Id'] || undefined,
+          documentId: tags['Document-Id'] || undefined
         };
         return { id: edge.node.id, metadata };
       });

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, StoredFile } from "@/lib/arweave-service";
 import { useAccount } from 'wagmi';
-import { decryptFileBufferHKDF } from '@/lib/encryption';
+import { decryptFileBufferHKDF, decryptFileForMultipleRecipients, decryptMetadata } from '../lib/encryption';
 import { format as formatDateFns } from 'date-fns';
 import { fetchPaymentStatus, PaymentStatus } from "@/lib/payment-status";
 
@@ -42,14 +42,26 @@ const Documents = () => {
       try {
         setLoading(true);
         setError(null);
-        // Fetch received documents
+        // Around line 45-50, after fetching files:
         const received = await arweaveService.getReceivedFiles(userAddress?.toLowerCase() || "");
-        // Fetch sent documents
         const sent = await arweaveService.getSentFiles(userAddress?.toLowerCase() || "");
-        setReceivedDocs(received);
-        setSentDocs(sent);
+        
+        // Filter out vault files from both received and sent documents
+        const filteredReceived = received.filter(file => 
+          !file.metadata.description?.includes("[VAULT]") &&
+          !file.metadata.documentId?.startsWith("vault_")
+        );
+        
+        const filteredSent = sent.filter(file => 
+          !file.metadata.description?.includes("[VAULT]") &&
+          !file.metadata.documentId?.startsWith("vault_")
+        );
+        
+        setReceivedDocs(filteredReceived);
+        setSentDocs(filteredSent);
+        
         // After fetching, fetch payment statuses for all docs with chargeId
-        const allDocs = [...received, ...sent];
+        const allDocs = [...filteredReceived, ...filteredSent];
         const statusMap: Record<string, PaymentStatus> = {};
         setStatusLoading(true);
         await Promise.all(allDocs.map(async (doc) => {
@@ -126,40 +138,110 @@ const Documents = () => {
     try {
       const { data, metadata } = await arweaveService.getFile(docId);
       if (!userAddress) throw new Error('Wallet not connected');
+      
       const isSender = typeof sender === 'string' && typeof userAddress === 'string' && userAddress.toLowerCase() === sender.toLowerCase();
-      const isRecipient = typeof recipient === 'string' && typeof userAddress === 'string' && userAddress.toLowerCase() === recipient.toLowerCase();
-      if (!isSender && !isRecipient) throw new Error('You do not have permission to decrypt this file');
-      if (!iv) throw new Error('Missing IV for decryption');
-      const decryptAddrA = sender.toLowerCase();
-      const decryptAddrB = recipient.toLowerCase();
-      // --- Robust ciphertext extraction for decryption ---
-      let ciphertextBase64;
+      
+      // Check if user is among recipients (handle both single recipient and multiple recipients)
+      let isRecipient = false;
+      if (typeof recipient === 'string' && typeof userAddress === 'string') {
+        isRecipient = userAddress.toLowerCase() === recipient.toLowerCase();
+      }
+      
+      // Also check if user is in the recipients array from metadata
+      if (!isRecipient && metadata.recipients && Array.isArray(metadata.recipients)) {
+        isRecipient = metadata.recipients.some((r: any) => 
+          typeof r === 'string' ? r.toLowerCase() === userAddress.toLowerCase() : 
+          r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress.toLowerCase()
+        );
+      }
+      
+      if (!isSender && !isRecipient) {
+        throw new Error('You do not have permission to decrypt this file');
+      }
+      
+      // Convert data to string for parsing
+      let dataString: string;
       if (data instanceof Uint8Array) {
-        ciphertextBase64 = uint8ArrayToBase64(data);
+        dataString = new TextDecoder().decode(data);
       } else if (typeof data === 'string') {
-        ciphertextBase64 = btoa(data);
+        dataString = data;
       } else {
         throw new Error('Unsupported data type for decryption');
       }
-      // --- SHA-256 integrity check (if present) ---
-      if (metadata && metadata.sha256) {
-        const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0)));
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        if (sha256 !== metadata.sha256) {
-          toast.error('Integrity check failed: File hash does not match. Download aborted.');
-          return;
-        }
-      }
-      let decrypted;
+      
+      let decrypted: Uint8Array;
+      
       try {
-        // Use HKDF-based decryption with documentId as salt if available, fallback to docId (legacy)
+        // Try to parse as new multi-recipient format
+        const payload = JSON.parse(dataString);
+        
+        if (payload.ciphertext && payload.iv && payload.metadata) {
+          // New multi-recipient format
+          const userKey = userAddress.toLowerCase();
+          
+          if (!payload.metadata[userKey]) {
+            throw new Error('No encrypted metadata found for this user');
+          }
+          
+          // Decrypt metadata to get recipient keys
+          const decryptedMetadata = await decryptMetadata(
+            payload.metadata[userKey],
+            sender.toLowerCase(),
+            userAddress.toLowerCase(),
+            metadata.documentId || docId
+          );
+          
+          // Use the new multi-recipient decryption
+          decrypted = await decryptFileForMultipleRecipients(
+            payload.ciphertext,
+            payload.iv,
+            decryptedMetadata.recipientKeys,
+            sender.toLowerCase(),
+            userAddress.toLowerCase(),
+            metadata.documentId || docId
+          );
+          
+          // Verify SHA-256 if available in decrypted metadata
+          if (decryptedMetadata.sha256) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(payload.ciphertext), c => c.charCodeAt(0)));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            if (sha256 !== decryptedMetadata.sha256) {
+              toast.error('Integrity check failed: File hash does not match. Download aborted.');
+              return;
+            }
+          }
+        } else {
+          throw new Error('Invalid payload format');
+        }
+      } catch (parseError) {
+        // Fallback to legacy single-recipient format
+        if (!iv) throw new Error('Missing IV for decryption');
+        
+        const ciphertextBase64 = data instanceof Uint8Array ? uint8ArrayToBase64(data) : btoa(dataString);
+        
+        // SHA-256 integrity check for legacy format
+        if (metadata && metadata.sha256) {
+          const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0)));
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          if (sha256 !== metadata.sha256) {
+            toast.error('Integrity check failed: File hash does not match. Download aborted.');
+            return;
+          }
+        }
+        
+        // Use legacy HKDF-based decryption
         const salt = metadata.documentId || docId;
-        decrypted = await decryptFileBufferHKDF(ciphertextBase64, iv, decryptAddrA, decryptAddrB, salt);
-      } catch (decryptionError) {
-        toast.error('Decryption failed: ' + (decryptionError instanceof Error ? decryptionError.message : 'Unknown error'));
-        return;
+        decrypted = await decryptFileBufferHKDF(
+          ciphertextBase64,
+          iv,
+          sender.toLowerCase(),
+          userAddress.toLowerCase(),
+          salt
+        );
       }
+      
       const blob = new Blob([decrypted], { type: metadata.type || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -168,7 +250,9 @@ const Documents = () => {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success('File decrypted and downloaded!');
+      
     } catch (error) {
+      console.error('Download error:', error);
       toast.error('Download failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
@@ -221,10 +305,10 @@ const Documents = () => {
     const lastPage = Math.ceil(total/PAGE_SIZE);
     if (lastPage <= 1) return null;
     return (
-      <div className="flex justify-end items-center gap-2 mt-4 bg-gray-100 dark:bg-[#191919] rounded-lg p-2">
-        <button disabled={page === 1} onClick={()=>setPage(page-1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 disabled:opacity-50">Prev</button>
+      <div className="flex justify-end items-center gap-2 mt-4 bg-white dark:bg-[#191919] rounded-lg p-2">
+        <button disabled={page === 1} onClick={()=>setPage(page-1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">Prev</button>
         <span className="text-sm">Page {page} of {lastPage}</span>
-        <button disabled={page === lastPage} onClick={()=>setPage(page+1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 disabled:opacity-50">Next</button>
+        <button disabled={page === lastPage} onClick={()=>setPage(page+1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">Next</button>
       </div>
     );
   }
@@ -270,7 +354,7 @@ const Documents = () => {
             </div>
           </div>
           
-          <Tabs defaultValue="received" className="w-full">
+          <Tabs defaultValue="received" className="w-full dark:bg-gray-900 dark:p-4 dark:rounded-lg">
             <TabsList className="mb-6">
               <TabsTrigger value="received" className="flex items-center gap-2">
                 <ArrowDownToLine size={16} />
@@ -288,7 +372,7 @@ const Documents = () => {
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="received" className="mt-0">
+            <TabsContent value="received" className="mt-0 dark:bg-gray-900">
               {loading ? (
                 <div className="py-12 text-center">
                   <div className="animate-spin mx-auto h-12 w-12 border-4 border-doc-deep-blue border-t-transparent rounded-full"></div>
@@ -362,7 +446,7 @@ const Documents = () => {
                   <Pagination page={receivedPage} setPage={setReceivedPage} total={sortedReceived.length} />
                 </div>
               ) : (
-                <div className="py-12 text-center">
+                <div className="py-12 text-center bg-white dark:bg-gray-900">
                   <Folder className="mx-auto h-12 w-12 text-doc-medium-gray opacity-50" />
                   <h3 className="mt-4 text-lg font-medium">No documents found</h3>
                   <p className="mt-1 text-doc-medium-gray">
@@ -372,7 +456,7 @@ const Documents = () => {
               )}
             </TabsContent>
             
-            <TabsContent value="sent" className="mt-0">
+            <TabsContent value="sent" className="mt-0 dark:bg-gray-900">
               {loading ? (
                 <div className="py-12 text-center">
                   <div className="animate-spin mx-auto h-12 w-12 border-4 border-doc-deep-blue border-t-transparent rounded-full"></div>

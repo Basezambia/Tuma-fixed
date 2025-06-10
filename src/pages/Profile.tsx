@@ -11,6 +11,7 @@ import { FundCard } from '@coinbase/onchainkit/fund';
 import { base } from 'viem/chains';
 import { useAccount } from 'wagmi';
 import { useBalance } from 'wagmi';
+import { useNavigate } from 'react-router-dom';
 
 const formatFileSize = (size: number) => {
   if (size < 1024) {
@@ -25,15 +26,18 @@ const formatFileSize = (size: number) => {
 };
 
 const Profile = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"profile" | "funding">("profile");
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // PRODUCTION: Get connected user's address
   const { address, isConnected } = useAccount();
+  // Update the useBalance hook to fetch USDC instead of ETH
   const { data: balanceData, isLoading: isBalanceLoading } = useBalance({
     address: address,
-    chainId: base.id
+    chainId: base.id,
+    token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' // USDC token address on Base
   });
 
   // PRODUCTION: Fetch real stats for the connected user
@@ -87,7 +91,7 @@ setStorageUsed(Number(totalSize)); // store as number (bytes)
 
   useEffect(() => {
     if (balanceData && balanceData.formatted) {
-      setWalletBalance(`${parseFloat(balanceData.formatted).toFixed(4)} ${balanceData.symbol}`);
+      setWalletBalance(`${parseFloat(balanceData.formatted).toFixed(2)} ${balanceData.symbol}`);
     } else {
       setWalletBalance(null);
     }
@@ -253,26 +257,26 @@ setStorageUsed(Number(totalSize)); // store as number (bytes)
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700">
+                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700 hover:shadow-lg hover:-translate-y-1 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 cursor-pointer">
                   <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">Documents Shared</h3>
                   <p className="text-3xl font-bold dark:text-white">{documentsShared !== null ? documentsShared : '-'}</p>
                 </div>
-                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700">
+                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700 hover:shadow-lg hover:-translate-y-1 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 cursor-pointer">
                   <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">Documents Received</h3>
                   <p className="text-3xl font-bold dark:text-white">{documentsReceived !== null ? documentsReceived : '-'}</p>
                 </div>
-                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700">
+                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700 hover:shadow-lg hover:-translate-y-1 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 cursor-pointer">
                   <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Storage Used</h3>
                   <p className="text-3xl font-bold dark:text-white">{storageUsed !== null ? formatFileSize(storageUsed) : '-'}</p>
                 </div>
-                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700">
+                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-white/20 dark:border-gray-700 hover:shadow-lg hover:-translate-y-1 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 cursor-pointer">
                   <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">Wallet Balance</h3>
                   <p className="text-3xl font-bold dark:text-white">{walletBalance !== null ? walletBalance : '-'}</p>
                 </div>
               </div>
               <div className="mb-8">
                 <h3 className="text-lg font-semibold mb-3 dark:text-white">Account Settings</h3>
-                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-3">
+                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-3 hover:shadow-lg hover:-translate-y-1 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 cursor-pointer">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium dark:text-white">Email Notifications</p>
@@ -284,7 +288,7 @@ setStorageUsed(Number(totalSize)); // store as number (bytes)
                     />
                   </div>
                 </div>
-                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-200 cursor-pointer">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium dark:text-white">Two-Factor Authentication</p>
@@ -323,6 +327,29 @@ setStorageUsed(Number(totalSize)); // store as number (bytes)
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   You're using {storageUsed !== null ? formatFileSize(storageUsed) : '-'} of storage.
                 </p>
+              </div>
+              
+              {/* Secure Vault Component */}
+              <div className="backdrop-blur-xl bg-white/40 dark:bg-gray-800 border border-white/20 dark:border-gray-700 shadow-lg rounded-xl p-6 mt-6">
+                <h3 className="text-lg font-semibold mb-4 dark:text-white">Secure Vault</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Premium File Storage</p>
+                
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                  Store your most valuable documents and files in an encrypted, password-protected vault.
+                  Only accessible with your secure password.
+                </p>
+                
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 text-xs">•</div>
+                  <span className="text-sm dark:text-gray-300">End-to-End Encrypted</span>
+                </div>
+                
+                <Button 
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white mt-4"
+                  onClick={() => navigate('/vault')}
+                >
+                  Open Vault
+                </Button>
               </div>
             </div>
           </div>
