@@ -14,7 +14,6 @@ export function AppProviders({ children }: { children: ReactNode }) {
         config={{
           appearance: {
             name: 'TUMA',
-            logo: '/logo.png',
             mode: 'auto',
             theme: 'default',
           },

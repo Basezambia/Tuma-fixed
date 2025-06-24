@@ -110,3 +110,164 @@ function base64ToUint8Array(base64: string): Uint8Array {
   }
   return bytes;
 }
+
+// Add new function for multi-recipient encryption
+export async function encryptFileForMultipleRecipients(
+  buffer: ArrayBuffer,
+  senderAddress: string,
+  recipientAddresses: string[],
+  documentId: string
+): Promise<{
+  masterCiphertext: string;
+  iv: string;
+  recipientKeys: { [address: string]: string };
+}> {
+  // Generate a random master key for the file
+  const masterKey = crypto.getRandomValues(new Uint8Array(32));
+  const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+  
+  // Import master key for AES-GCM
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    masterKey,
+    'AES-GCM',
+    false,
+    ['encrypt']
+  );
+  
+  // Encrypt file with master key
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: ivBytes },
+    cryptoKey,
+    buffer
+  );
+  
+  const masterCiphertext = uint8ArrayToBase64(new Uint8Array(encrypted));
+  const iv = uint8ArrayToBase64(ivBytes);
+  
+  // Encrypt master key for each recipient (including sender)
+  const recipientKeys: { [address: string]: string } = {};
+  const allAddresses = [senderAddress, ...recipientAddresses];
+  
+  for (const recipientAddr of allAddresses) {
+    const keyEncryptionKey = await deriveSymmetricKeyHKDF(
+      senderAddress,
+      recipientAddr,
+      documentId
+    );
+    
+    const keyIv = crypto.getRandomValues(new Uint8Array(12));
+    const encryptedMasterKey = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: keyIv },
+      keyEncryptionKey,
+      masterKey
+    );
+    
+    // Store encrypted key with its IV
+    const keyData = new Uint8Array(keyIv.length + encryptedMasterKey.byteLength);
+    keyData.set(keyIv);
+    keyData.set(new Uint8Array(encryptedMasterKey), keyIv.length);
+    
+    recipientKeys[recipientAddr.toLowerCase()] = uint8ArrayToBase64(keyData);
+  }
+  
+  return { masterCiphertext, iv, recipientKeys };
+}
+
+export async function decryptFileForMultipleRecipients(
+  masterCiphertext: string,
+  iv: string,
+  recipientKeys: { [address: string]: string },
+  senderAddress: string,
+  userAddress: string,
+  documentId: string
+): Promise<Uint8Array> {
+  const userKey = userAddress.toLowerCase();
+  
+  if (!recipientKeys[userKey]) {
+    throw new Error('No decryption key found for this user');
+  }
+  
+  // Decrypt the master key
+  const keyData = base64ToUint8Array(recipientKeys[userKey]);
+  const keyIv = keyData.slice(0, 12);
+  const encryptedMasterKey = keyData.slice(12);
+  
+  const keyEncryptionKey = await deriveSymmetricKeyHKDF(
+    senderAddress,
+    userAddress,
+    documentId
+  );
+  
+  const masterKeyBuffer = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: keyIv },
+    keyEncryptionKey,
+    encryptedMasterKey
+  );
+  
+  // Import master key and decrypt file
+  const masterKey = await crypto.subtle.importKey(
+    'raw',
+    masterKeyBuffer,
+    'AES-GCM',
+    false,
+    ['decrypt']
+  );
+  
+  const ciphertext = base64ToUint8Array(masterCiphertext);
+  const ivBytes = base64ToUint8Array(iv);
+  
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: ivBytes },
+    masterKey,
+    ciphertext
+  );
+  
+  return new Uint8Array(decrypted);
+}
+
+// Add metadata encryption
+export async function encryptMetadata(
+  metadata: any,
+  senderAddress: string,
+  recipientAddress: string,
+  documentId: string
+): Promise<string> {
+  const key = await deriveSymmetricKeyHKDF(senderAddress, recipientAddress, documentId + '_meta');
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const metadataBytes = new TextEncoder().encode(JSON.stringify(metadata));
+  
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    metadataBytes
+  );
+  
+  // Combine IV and encrypted data
+  const combined = new Uint8Array(iv.length + encrypted.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(encrypted), iv.length);
+  
+  return uint8ArrayToBase64(combined);
+}
+
+export async function decryptMetadata(
+  encryptedMetadata: string,
+  senderAddress: string,
+  recipientAddress: string,
+  documentId: string
+): Promise<any> {
+  const key = await deriveSymmetricKeyHKDF(senderAddress, recipientAddress, documentId + '_meta');
+  const combined = base64ToUint8Array(encryptedMetadata);
+  const iv = combined.slice(0, 12);
+  const encrypted = combined.slice(12);
+  
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encrypted
+  );
+  
+  const metadataJson = new TextDecoder().decode(decrypted);
+  return JSON.parse(metadataJson);
+}

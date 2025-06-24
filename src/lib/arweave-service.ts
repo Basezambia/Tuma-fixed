@@ -2,6 +2,8 @@ import Arweave from 'arweave';
 import { toast } from 'sonner';
 import { deriveSymmetricKeyHKDF } from './encryption';
 import type { JWKInterface } from 'arweave/web/lib/wallet';
+import { getName, getAddress } from '@coinbase/onchainkit/identity';
+import { base } from 'viem/chains';
 
 // Initialize Arweave
 const arweave = Arweave.init({
@@ -53,13 +55,16 @@ export interface FileMetadata {
   type: string;
   size: number;
   sender: string;
-  recipient: string;
+  recipient: string; // Keep for backward compatibility
+  recipients?: string[]; // Add array for multiple recipients
   timestamp: number;
   description?: string;
   iv?: string; // Add IV for decryption
   sha256?: string; // Add SHA-256 hash for integrity verification
   chargeId?: string; // Add chargeId for payment gating
   documentId?: string; // Add documentId for HKDF salt
+  parentFolderId?: string; // Add parentFolderId for folder structure
+  fileCount?: number; // Add fileCount for folders
 }
 
 export interface StoredFile {
@@ -69,6 +74,9 @@ export interface StoredFile {
 
 class ArweaveService {
   private ownerWallet: JWKInterface | null = null; // Only the app owner's JWK
+  private nameCache: Map<string, string | null> = new Map(); // Cache for address -> name resolution
+  private cacheExpiry: Map<string, number> = new Map(); // Cache expiry timestamps
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
     this.loadOwnerWallet();
@@ -142,15 +150,25 @@ class ArweaveService {
       transaction.addTag('Document-Type', metadata.type);
       transaction.addTag('Document-Size', metadata.size.toString());
       transaction.addTag('Sender', metadata.sender.toLowerCase());
-      transaction.addTag('Recipient', metadata.recipient.toLowerCase());
       transaction.addTag('Timestamp', metadata.timestamp.toString());
+      
+      // Handle multiple recipients
+      if (metadata.recipients && Array.isArray(metadata.recipients)) {
+        metadata.recipients.forEach((recipient, index) => {
+          transaction.addTag(`Recipient-${index}`, recipient.toLowerCase());
+        });
+      } else {
+        // Fallback to single recipient for backward compatibility
+        transaction.addTag('Recipient-0', metadata.recipient.toLowerCase());
+      }
+      
       if (metadata.description) transaction.addTag('Description', metadata.description);
       if (metadata.iv) transaction.addTag('IV', metadata.iv);
-      if (metadata.sha256) transaction.addTag('sha256', metadata.sha256); // Always add sha256 tag for integrity
-      if (metadata.documentId) transaction.addTag('Document-Id', metadata.documentId); // Add documentId tag
-
+      if (metadata.sha256) transaction.addTag('sha256', metadata.sha256);
+      if (metadata.documentId) transaction.addTag('Document-Id', metadata.documentId);
+  
       await arweave.transactions.sign(transaction, this.ownerWallet!);
-
+  
       // Use chunked uploader for reliability and progress
       const uploader = await arweave.transactions.getUploader(transaction);
       let lastPct = 0;
@@ -179,9 +197,7 @@ class ArweaveService {
       } catch (err) {
         // Show a warning but do not treat as hard error
         console.warn('Arweave transaction not confirmed in time, but upload likely succeeded:', transaction.id);
-        toast.warning(
-          `Upload submitted but not yet confirmed. You can check status here: https://arweave.net/${transaction.id}`
-        );
+        toast.warning(`The transaction is still pending, when complete user will be notified`);
         // Still return txId so user can check status
       }
 
@@ -206,15 +222,12 @@ class ArweaveService {
    */
   private async apiUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
     try {
-      // Show initial progress
       if (onProgress) onProgress(10);
       
-      // Convert file to base64 for API transmission
       const base64Data = Buffer.from(file).toString('base64');
       
-      if (onProgress) onProgress(30); // Update progress after conversion
+      if (onProgress) onProgress(30);
       
-      // Prepare API request
       const payload = {
         ciphertext: base64Data,
         metadata: {
@@ -223,10 +236,18 @@ class ArweaveService {
           'Document-Type': metadata.type,
           'Document-Size': metadata.size.toString(),
           'Sender': metadata.sender.toLowerCase(),
-          'Recipient': metadata.recipient.toLowerCase(),
           'Timestamp': metadata.timestamp.toString(),
         }
       };
+      
+      // Handle multiple recipients
+      if (metadata.recipients && Array.isArray(metadata.recipients)) {
+        metadata.recipients.forEach((recipient, index) => {
+          payload.metadata[`Recipient-${index}`] = recipient.toLowerCase();
+        });
+      } else {
+        payload.metadata['Recipient-0'] = metadata.recipient.toLowerCase();
+      }
       
       // Add optional metadata
       if (metadata.description) payload.metadata['Description'] = metadata.description;
@@ -367,19 +388,32 @@ class ArweaveService {
         });
       }
       
+      // In the getFile method, around line 380-400, update the metadata parsing:
       const metadata: FileMetadata = {
         name: tags['Document-Name'] || '',
         type: tags['Document-Type'] || '',
         size: Number(tags['Document-Size']) || 0,
         sender: tags['Sender'] || '',
-        recipient: tags['Recipient'] || '',
+        recipient: tags['Recipient-0'] || tags['Recipient'] || '', // Fallback to old format
+        recipients: [], // Initialize recipients array
         timestamp: Number(tags['Timestamp']) || 0,
         description: tags['Description'],
         iv: tags['IV'],
         sha256: tags['sha256'] || tags['SHA256'] || undefined,
         documentId: tags['Document-Id'] || undefined,
       };
-
+      
+      // Parse multiple recipients
+      const recipients = [];
+      for (let i = 0; i < 10; i++) {
+        const recipientTag = tags[`Recipient-${i}`];
+        if (recipientTag) {
+          recipients.push(recipientTag);
+        }
+      }
+      if (recipients.length > 0) {
+        metadata.recipients = recipients;
+      }
       return { data, metadata };
     } catch (error) {
       console.error('Error fetching file from Arweave:', error);
@@ -389,54 +423,152 @@ class ArweaveService {
   }
 
   /**
+   * Resolve address to ENS/Base name (reverse resolution) with caching
+   */
+  private async resolveAddressToName(address: string): Promise<string | null> {
+    const normalizedAddress = address.toLowerCase();
+    
+    // Check cache first
+    const cached = this.nameCache.get(normalizedAddress);
+    const cacheTime = this.cacheExpiry.get(normalizedAddress);
+    
+    if (cached !== undefined && cacheTime && Date.now() < cacheTime) {
+      return cached;
+    }
+    
+    try {
+      const name = await getName({ address: address as `0x${string}`, chain: base });
+      const result = name || null;
+      
+      // Cache the result
+      this.nameCache.set(normalizedAddress, result);
+      this.cacheExpiry.set(normalizedAddress, Date.now() + this.CACHE_DURATION);
+      
+      return result;
+    } catch (error) {
+      // No ENS/Base name found for address
+      
+      // Cache null result to avoid repeated failed lookups
+      this.nameCache.set(normalizedAddress, null);
+      this.cacheExpiry.set(normalizedAddress, Date.now() + this.CACHE_DURATION);
+      
+      return null;
+    }
+  }
+
+  /**
+   * Get all possible recipient identifiers for an address
+   * Returns both the address and any ENS/Base names that resolve to it
+   */
+  private async getAllRecipientIdentifiers(address: string): Promise<string[]> {
+    const identifiers = [address.toLowerCase()];
+    
+    try {
+      // Try to get ENS/Base name for this address
+      const name = await this.resolveAddressToName(address);
+      if (name) {
+        identifiers.push(name.toLowerCase());
+        
+        // Also check common variations
+        if (name.endsWith('.eth')) {
+          identifiers.push(name.toLowerCase());
+        }
+        if (name.endsWith('.base.eth')) {
+          identifiers.push(name.toLowerCase());
+        }
+      }
+    } catch (error) {
+      // Error resolving address to name
+    }
+    
+    return [...new Set(identifiers)]; // Remove duplicates
+  }
+
+  /**
    * Get all received files for a user address
-   * Uses Arweave GraphQL to find transactions where Recipient == address
+   * Uses Arweave GraphQL to find transactions where any Recipient-X == address or ENS/Base name
    */
   async getReceivedFiles(address: string): Promise<StoredFile[]> {
     if (!address) return [];
     try {
-      const query = {
-        query: `{
-          transactions(
-            tags: [
-              { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-              { name: "Recipient", values: ["${address.toLowerCase()}"] }
-            ]
-            first: 100
-          ) {
-            edges {
-              node {
-                id
-                tags {
-                  name
-                  value
-                }
+      // Get all possible identifiers for this address (address + ENS/Base names)
+      const recipientIdentifiers = await this.getAllRecipientIdentifiers(address);
+      // Searching for files with recipient identifiers
+      
+      // Build dynamic query for up to 10 recipients, checking all identifiers
+      const recipientQueries = Array.from({ length: 10 }, (_, i) => `
+        transactions${i}: transactions(
+          tags: [
+            { name: "App-Name", values: ["TUMA-Document-Exchange"] },
+            { name: "Recipient-${i}", values: [${recipientIdentifiers.map(id => `"${id}"`).join(', ')}] }
+          ]
+          first: 100
+        ) {
+          edges {
+            node {
+              id
+              tags {
+                name
+                value
               }
             }
           }
-        }`
+        }
+      `).join('');
+      
+      const query = {
+        query: `{${recipientQueries}}`
       };
+      
       const res = await fetch('https://arweave.net/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(query)
       });
+      
       const json = await res.json();
-      const edges = json.data.transactions.edges;
-      return edges.map((edge: any) => {
+      
+      // Combine all results
+      const allEdges = [];
+      for (let i = 0; i < 10; i++) {
+        if (json.data[`transactions${i}`]) {
+          allEdges.push(...json.data[`transactions${i}`].edges);
+        }
+      }
+      
+      // Remove duplicates
+      const uniqueEdges = allEdges.filter((edge, index, self) => 
+        index === self.findIndex(e => e.node.id === edge.node.id)
+      );
+      
+      return uniqueEdges.map((edge: any) => {
         const tags: Record<string, string> = {};
         edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
+        
+        // Extract all recipients from Recipient-X tags
+        const recipients: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          const recipientTag = `Recipient-${i}`;
+          if (tags[recipientTag]) {
+            recipients.push(tags[recipientTag]);
+          }
+        }
+        
         const metadata: FileMetadata = {
           name: tags['Document-Name'] || '',
           type: tags['Document-Type'] || '',
           size: Number(tags['Document-Size']) || 0,
           sender: tags['Sender'] || '',
-          recipient: tags['Recipient'] || '',
+          recipient: tags['Recipient'] || tags['Recipient-0'] || '', // Fallback to Recipient-0
+          recipients: recipients.length > 0 ? recipients : undefined, // Add recipients array
           timestamp: Number(tags['Timestamp']) || 0,
           description: tags['Description'],
           iv: tags['IV'],
           sha256: tags['sha256'] || tags['SHA256'] || undefined,
+          chargeId: tags['Charge-Id'] || undefined,
+          documentId: tags['Document-Id'] || undefined
         };
+        
         return { id: edge.node.id, metadata };
       });
     } catch (error) {
@@ -448,17 +580,21 @@ class ArweaveService {
 
   /**
    * Get all sent files for a user address
-   * Uses Arweave GraphQL to find transactions where Sender == address
+   * Uses Arweave GraphQL to find transactions where Sender == address or ENS/Base name
    */
   async getSentFiles(address: string): Promise<StoredFile[]> {
     if (!address) return [];
     try {
+      // Get all possible identifiers for this address (address + ENS/Base names)
+      const senderIdentifiers = await this.getAllRecipientIdentifiers(address);
+      // Searching for files with sender identifiers
+      
       const query = {
         query: `{
           transactions(
             tags: [
               { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-              { name: "Sender", values: ["${address.toLowerCase()}"] }
+              { name: "Sender", values: [${senderIdentifiers.map(id => `"${id}"`).join(', ')}] }
             ]
             first: 100
           ) {
@@ -484,16 +620,29 @@ class ArweaveService {
       return edges.map((edge: any) => {
         const tags: Record<string, string> = {};
         edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
+        
+        // Extract all recipients from Recipient-X tags
+        const recipients: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          const recipientTag = `Recipient-${i}`;
+          if (tags[recipientTag]) {
+            recipients.push(tags[recipientTag]);
+          }
+        }
+        
         const metadata: FileMetadata = {
           name: tags['Document-Name'] || '',
           type: tags['Document-Type'] || '',
           size: Number(tags['Document-Size']) || 0,
           sender: tags['Sender'] || '',
-          recipient: tags['Recipient'] || '',
+          recipient: tags['Recipient'] || tags['Recipient-0'] || '', // Fallback to Recipient-0
+          recipients: recipients.length > 0 ? recipients : undefined, // Add recipients array
           timestamp: Number(tags['Timestamp']) || 0,
           description: tags['Description'],
           iv: tags['IV'],
           sha256: tags['sha256'] || tags['SHA256'] || undefined,
+          chargeId: tags['Charge-Id'] || undefined,
+          documentId: tags['Document-Id'] || undefined
         };
         return { id: edge.node.id, metadata };
       });

@@ -12,6 +12,8 @@ import Send from "./pages/Send";
 import About from "./pages/About";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import Vault from "./pages/Vault";
+import Enterprise from "./pages/Enterprise";
 // import { OnchainKitProvider } from '@coinbase/onchainkit';
 // import { base } from 'wagmi/chains';
 import '@coinbase/onchainkit/styles.css';
@@ -52,6 +54,8 @@ const AppContent = () => {
                 <Route path="/send" element={<ProtectedRoute element={<Send />} />} />
                 <Route path="/documents" element={<ProtectedRoute element={<Documents />} />} />
                 <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
+                <Route path="/vault" element={<ProtectedRoute element={<Vault />} />} />
+                <Route path="/enterprise" element={<ProtectedRoute element={<Enterprise />} />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

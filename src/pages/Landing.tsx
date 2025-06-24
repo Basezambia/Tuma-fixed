@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { ArrowRight, CheckCircle, Shield, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Wallet as OnchainWallet } from '@coinbase/onchainkit/wallet';
@@ -7,6 +7,51 @@ import Header from "@/components/Header";
 const Landing = () => {
   const navigate = useNavigate();
   const [isHovering, setIsHovering] = useState(false);
+  const [arweavePricing, setArweavePricing] = useState(null);
+  const [isLoadingPricing, setIsLoadingPricing] = useState(true);
+
+  // Fetch Arweave pricing data
+  const fetchArweavePricing = useCallback(async () => {
+    try {
+      const response = await fetch('/api/getArweavePrice');
+      const data = await response.json();
+      setArweavePricing(data);
+    } catch (error) {
+      console.error('Error fetching Arweave pricing:', error);
+    } finally {
+      setIsLoadingPricing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchArweavePricing();
+    // Refresh pricing every 5 minutes
+    const interval = setInterval(fetchArweavePricing, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchArweavePricing]);
+
+  // Calculate dynamic price with 35% profit margin
+  const calculateDynamicPrice = useCallback((sizeInMB) => {
+    if (!arweavePricing || !arweavePricing.pricePerMBInUSD) {
+      return '$0.01 USDC'; // Fallback minimum
+    }
+
+    const basePrice = sizeInMB * arweavePricing.pricePerMBInUSD;
+    const networkFactor = arweavePricing.networkFactor || 1;
+    const adjustedPrice = basePrice * networkFactor;
+    const finalPrice = adjustedPrice * 1.35; // 35% profit margin
+    const minPrice = 0.01; // Minimum $0.01
+
+    return `$${Math.max(finalPrice, minPrice).toFixed(2)} USDC`;
+  }, [arweavePricing]);
+
+  // Calculate tier price for display
+  const calculateTierPrice = useCallback((sizeInMB) => {
+    if (isLoadingPricing) {
+      return 'Loading...';
+    }
+    return calculateDynamicPrice(sizeInMB);
+  }, [calculateDynamicPrice, isLoadingPricing]);
 
   const features = [
     {
@@ -27,10 +72,10 @@ const Landing = () => {
   ];
 
   const pricingTiers = [
-    { size: "100KB to 20MB", price: "1.00 USDC" },
-    { size: "20MB to 50MB", price: "2.00 USDC" },
-    { size: "50MB to 100MB", price: "3.00 USDC" },
-    { size: ">100MB", price: "5.00 USDC" }
+    { size: "100KB to 20MB", price: calculateTierPrice(10) },
+    { size: "20MB to 50MB", price: calculateTierPrice(35) },
+    { size: "50MB to 100MB", price: calculateTierPrice(75) },
+    { size: ">100MB", price: "Real-time calculated" }
   ];
 
   return (
@@ -204,6 +249,11 @@ const Landing = () => {
                   </p>
                 </div>
               ))}
+            </div>
+            <div className="mt-8 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Prices updated in real-time based on network costs
+              </p>
             </div>
           </div>
         </div>

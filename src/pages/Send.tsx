@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FileUp, Send as SendIcon, User, Users, X, AlertCircle, Coins, Clock, Bell } from 'lucide-react';
+import { FileUp, Send as SendIcon, User, Users, X, AlertCircle, Coins, Clock, Bell, Plus } from 'lucide-react';
 import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, FileMetadata } from "@/lib/arweave-service";
-import { encryptFileBufferHKDF } from '@/lib/encryption';
+import { encryptFileBufferHKDF, encryptFileForMultipleRecipients, encryptMetadata } from '@/lib/encryption';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAccount } from 'wagmi';
 import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
+import { getAddress } from '@coinbase/onchainkit/identity';
+import { base } from 'wagmi/chains';
 
 // Define the SentFileInfo interface
 interface SentFileInfo {
@@ -25,9 +27,11 @@ const Send = () => {
   // ...existing state declarations...
   const [uploadTimeoutId, setUploadTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [recipients, setRecipients] = useState<{name: string; address: string}[]>([{name: "", address: ""}]);
+  const [recipients, setRecipients] = useState<{name: string; address: string}[]>([]);
+  const [currentRecipient, setCurrentRecipient] = useState<{name: string; address: string}>({name: "", address: ""});
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [processStep, setProcessStep] = useState<'idle' | 'encrypting' | 'uploading' | 'pending' | 'success'>('idle');
   const [calculatedFee, setCalculatedFee] = useState<string | null>(null);
   const [fileSizeTier, setFileSizeTier] = useState<string | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -46,6 +50,45 @@ const Send = () => {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [sentFiles, setSentFiles] = useState<SentFileInfo[]>([]);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [isResolvingName, setIsResolvingName] = useState(false);
+
+  // Function to resolve ENS/Base names to addresses
+  const resolveNameToAddress = async (name: string): Promise<string | null> => {
+    try {
+      setIsResolvingName(true);
+      const address = await getAddress({ name, chain: base });
+      return address || null;
+    } catch (error) {
+      console.error('Error resolving name:', error);
+      return null;
+    } finally {
+      setIsResolvingName(false);
+    }
+  };
+
+  // Function to handle address input with name resolution
+  const handleAddressChange = async (value: string) => {
+    // Check if the input looks like an ENS/Base name
+    if (value.includes('.eth') || value.includes('.base.eth')) {
+      // For ENS/Base names, don't set the address until we resolve it
+      setCurrentRecipient({...currentRecipient, address: value}); // Show the name while resolving
+      const resolvedAddress = await resolveNameToAddress(value);
+      if (resolvedAddress) {
+        setCurrentRecipient({...currentRecipient, address: resolvedAddress});
+        toast.success(`Resolved ${value} to ${resolvedAddress.slice(0, 6)}...${resolvedAddress.slice(-4)}`);
+      } else {
+        toast.error(`Could not resolve ${value}. Please check the name or enter a direct address.`);
+        // Keep the original name in case user wants to try again
+        setCurrentRecipient({...currentRecipient, address: value});
+      }
+    } else {
+      // For regular addresses, set immediately
+      setCurrentRecipient({...currentRecipient, address: value});
+    }
+  };
+  const [showRecipientDialog, setShowRecipientDialog] = useState(false);
+  const [showUploadSuccessPopup, setShowUploadSuccessPopup] = useState(false);
+
 
   // Charge handler for Coinbase Commerce is defined below in the file
 
@@ -74,7 +117,36 @@ const Send = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setFiles(prevFiles => [...prevFiles, ...newFiles]);
+      const currentFileCount = files.length;
+      const maxFiles = 8;
+      const maxSizeBytes = 500 * 1024 * 1024; // 500MB in bytes
+      
+      // Check if adding new files would exceed the file count limit
+      if (currentFileCount >= maxFiles) {
+        toast.error(`Maximum of ${maxFiles} files allowed`);
+        return;
+      }
+      
+      // Only add files up to the limit
+      const remainingSlots = maxFiles - currentFileCount;
+      const filesToAdd = newFiles.slice(0, remainingSlots);
+      
+      // Check total size including new files
+      const currentTotalSize = getTotalFileSize();
+      const newFilesSize = filesToAdd.reduce((total, file) => total + file.size, 0);
+      const totalSizeAfterAdd = currentTotalSize + newFilesSize;
+      
+      if (totalSizeAfterAdd > maxSizeBytes) {
+        const remainingSize = maxSizeBytes - currentTotalSize;
+        toast.error(`Total file size would exceed 500MB limit. You have ${(remainingSize / 1024 / 1024).toFixed(2)}MB remaining.`);
+        return;
+      }
+      
+      if (newFiles.length > remainingSlots) {
+        toast.warning(`Only ${remainingSlots} more files can be added. Maximum of ${maxFiles} files allowed.`);
+      }
+      
+      setFiles(prevFiles => [...prevFiles, ...filesToAdd]);
     }
   };
 
@@ -111,9 +183,6 @@ const Send = () => {
     }
     
     try {
-      // Start sending process
-      setSending(true);
-      
       // Generate a unique document group ID for this batch
       const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       
@@ -126,20 +195,17 @@ const Send = () => {
       
       // Show payment confirmation
       setShowPaymentDialog(true);
-      // Do NOT call handlePostPaymentUpload here!
-      setSending(false);
     } catch (error) {
       console.error("Error preparing documents:", error);
       toast.error("Failed to prepare documents for sending");
-      setSending(false);
     }
   };
 
   // State for Arweave pricing data
   const [arweavePricing, setArweavePricing] = useState<{
-    arPrice: number;
     pricePerMBInAR: number;
     pricePerMBInUSD: number;
+    pricePerMBInWinston: number;
     timestamp: number;
     networkFactor: number;
   } | null>(null);
@@ -167,22 +233,32 @@ const Send = () => {
     }
   }, []);
 
-  // Calculate dynamic pricing based on Arweave token price and network conditions
+  // Calculate dynamic pricing based on Arweave token price with 35% profit margin
   const calculateDynamicPrice = useCallback((sizeMB: number, pricingData: any) => {
     if (!pricingData) return null;
     
-    // Base cost calculation using Arweave pricing
+    // Base cost calculation using REAL Arweave pricing
     const baseCostInUSD = sizeMB * pricingData.pricePerMBInUSD;
     
     // Apply network factor (represents network congestion, etc.)
     const adjustedCostInUSD = baseCostInUSD * pricingData.networkFactor;
     
-    // Add service fee margin (50% markup for service)
-    const totalCostWithMargin = adjustedCostInUSD * 1.5;
+    // Add 35% profit margin as requested
+    const totalCostWithMargin = adjustedCostInUSD * 1.35;
     
-    // Round to nearest 0.5 USD for simplicity
-    return (Math.ceil(totalCostWithMargin * 2) / 2).toFixed(2);
+    // Ensure minimum fee of $0.01 for very small files
+    const finalPrice = Math.max(0.01, totalCostWithMargin);
+    
+    return finalPrice.toFixed(2);
   }, []);
+
+  // Calculate pricing for specific size tiers using real-time Arweave data
+  const calculateTierPrice = useCallback((sizeMB: number) => {
+    if (!arweavePricing) return 'Loading...';
+    
+    const dynamicPrice = calculateDynamicPrice(sizeMB, arweavePricing);
+    return dynamicPrice ? `$${dynamicPrice} USDC` : 'Calculating...';
+  }, [arweavePricing, calculateDynamicPrice]);
 
   useEffect(() => {
     if (files.length > 0) {
@@ -190,53 +266,48 @@ const Send = () => {
       let fee = null;
       const totalSizeMB = getTotalFileSize() / 1024 / 1024;
       
-      // Pricing tiers
-      if (totalSizeMB < 0.1) {
-        tier = 'Tier 1 (<100KB)';
-        fee = '0.05';
+      // All pricing tiers now use dynamic real-time pricing with 35% profit margin
+      if (totalSizeMB < 1) {
+        tier = 'Below 1MB';
       } else if (totalSizeMB < 10) {
-        tier = 'Tier 2 (100KB-10MB)';
-        fee = '0.5';
-      } else if (totalSizeMB < 20) {
-        tier = 'Tier 3 (10MB-20MB)';
-        fee = '1.00';
-      } else if (totalSizeMB >= 20) {
-        // For files over 20MB, use dynamic pricing based on Arweave
-        if (totalSizeMB < 50) {
-          tier = 'Tier 4 (20-50MB) - Dynamic';
-        } else if (totalSizeMB < 100) {
-          tier = 'Tier 5 (50-100MB) - Dynamic';
+        tier = '1MB - 10MB';
+      } else if (totalSizeMB < 30) {
+        tier = '10MB - 30MB';
+      } else if (totalSizeMB < 100) {
+        tier = '30MB - 100MB';
+      } else if (totalSizeMB <= 500) {
+        tier = `${totalSizeMB.toFixed(0)}MB - Dynamic`;
+      } else {
+        // Over 500MB - not allowed
+        tier = 'File too large';
+        fee = '0.00';
+        toast.error('Maximum file size is 500MB');
+        setFileSizeTier(tier);
+        setServiceFee(fee);
+        return;
+      }
+      
+      // Calculate dynamic pricing for all file sizes
+      if (arweavePricing && arweavePricing.timestamp > Date.now() - 3600000) { // Cache for 1 hour
+        const dynamicFee = calculateDynamicPrice(totalSizeMB, arweavePricing);
+        if (dynamicFee) {
+          fee = dynamicFee;
         } else {
-          tier = 'Tier 6 (>100MB) - Dynamic';
+          fee = '0.01'; // Minimum fallback
         }
+      } else {
+        // Set minimum fee while fetching real-time data
+        fee = '0.01';
         
-        // If we already have pricing data, use it immediately
-        if (arweavePricing && arweavePricing.timestamp > Date.now() - 3600000) { // Cache for 1 hour
-          const dynamicFee = calculateDynamicPrice(totalSizeMB, arweavePricing);
-          if (dynamicFee) {
-            fee = dynamicFee;
-          } else {
-            // Fallback to static pricing if calculation fails
-            if (totalSizeMB < 50) fee = '2.00';
-            else if (totalSizeMB < 100) fee = '3.00';
-            else fee = '5.00';
-          }
-        } else {
-          // Set initial static fee while fetching real-time data
-          if (totalSizeMB < 50) fee = '2.00';
-          else if (totalSizeMB < 100) fee = '3.00';
-          else fee = '5.00';
-          
-          // Fetch fresh pricing data
-          fetchArweavePricing().then(pricingData => {
-            if (pricingData) {
-              const dynamicFee = calculateDynamicPrice(totalSizeMB, pricingData);
-              if (dynamicFee) {
-                setServiceFee(dynamicFee);
-              }
+        // Fetch fresh pricing data
+        fetchArweavePricing().then(pricingData => {
+          if (pricingData) {
+            const dynamicFee = calculateDynamicPrice(totalSizeMB, pricingData);
+            if (dynamicFee) {
+              setServiceFee(dynamicFee);
             }
-          });
-        }
+          }
+        });
       }
       
       setFileSizeTier(tier);
@@ -457,19 +528,7 @@ const Send = () => {
           }
         }
         
-        // Validate response data
-        if (!data || !data.success || !data.data || !data.data.id) {
-          console.error('Invalid response from payment service:', data);
-          throw new Error('Invalid response from payment service');
-        }
-
-        console.log('Charge created successfully:', data.data.id);
-        
-        // Store charge ID for polling and return it for the Checkout component
-        setChargeId(data.data.id);
-        setPaymentStatus('pending');
-        
-        return data.data.id;
+        // This code block should be removed as it's unreachable after the return statement above
         
       } catch (error) {
         console.error('Error during charge creation:', error);
@@ -494,9 +553,12 @@ const Send = () => {
   ]);
 
   const retryPayment = () => {
-    setShowPaymentDialog(true);
-    setPaymentStatus('idle');
-    setPaymentError(null);
+    // Only allow retry if payment hasn't succeeded
+    if (paymentStatus !== 'success') {
+      setShowPaymentDialog(true);
+      setPaymentStatus('idle');
+      setPaymentError(null);
+    }
   };
 
   const handlePostPaymentUpload = async () => {
@@ -517,13 +579,22 @@ const Send = () => {
     }
     
     try {
-      setSending(true);
+      // Reset form after successful payment
+      setFiles([]);
+      setMessage("");
+      setRecipients([]);
+      setCurrentRecipient({ name: "", address: "" });
+      
       setShowPaymentDialog(false);
       setUploadProgress(0);
       setShowProgressDialog(true);
       setUploading(true);
       setUploadError(null);
       setUploadComplete(false);
+      setProcessStep('encrypting');
+      
+      // Show encryption notification
+      toast.info('Encrypting files...');
       
       // Track successful uploads
       const successfulUploads: SentFileInfo[] = [];
@@ -548,73 +619,112 @@ const Send = () => {
       for (const recipient of validRecipients) {
         console.log(`Processing recipient: ${recipient.name} (${recipient.address})`);
         
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          const fileDocId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }
+      
+      // Process each file once for all recipients
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileDocId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        
+        try {
+          // Get all recipient addresses
+          const recipientAddresses = validRecipients.map(r => r.address.toLowerCase());
           
-          try {
-            // Generate encryption key
-            const encryptionKey = generateEncryptionKey();
-            
-            // Encrypt file
-            const buffer = await file.arrayBuffer();
-            const { ciphertext, iv } = await encryptFileBufferHKDF(
-              buffer, 
-              senderAddress?.toLowerCase() || '', 
-              recipient.address.toLowerCase(), 
+          // Encrypt file for multiple recipients
+          const buffer = await file.arrayBuffer();
+          const { masterCiphertext, iv, recipientKeys } = await encryptFileForMultipleRecipients(
+            buffer,
+            senderAddress?.toLowerCase() || '',
+            recipientAddresses,
+            fileDocId
+          );
+          
+          // Create hash of master ciphertext
+          const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(masterCiphertext), c => c.charCodeAt(0)));
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          
+          // Create private metadata (encrypted)
+          const privateMetadata = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            sender: senderAddress?.toLowerCase() || '',
+            recipients: validRecipients.map(r => ({
+              name: r.name,
+              address: r.address.toLowerCase()
+            })),
+            description: message || undefined,
+            sha256,
+            documentId: fileDocId,
+            recipientKeys
+          };
+          
+          // Encrypt private metadata for each recipient
+          const encryptedMetadataForRecipients: { [address: string]: string } = {};
+          for (const recipient of validRecipients) {
+            encryptedMetadataForRecipients[recipient.address.toLowerCase()] = await encryptMetadata(
+              privateMetadata,
+              senderAddress?.toLowerCase() || '',
+              recipient.address.toLowerCase(),
               fileDocId
             );
-            
-            // Create hash
-            const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0)));
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            
-            // Create metadata
-            const metadata: FileMetadata = {
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              sender: senderAddress?.toLowerCase() || '',
-              recipient: recipient.address.toLowerCase(),
-              timestamp: Date.now(),
-              description: message || undefined,
-              iv,
-              sha256,
-              chargeId: chargeId || undefined,
-              documentId: fileDocId,
-            };
-            
-            // Convert ciphertext to Uint8Array
-            let cipherArr;
-            if (typeof ciphertext === 'string') {
-              try {
-                cipherArr = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
-              } catch (e) {
-                throw new Error('Failed to convert ciphertext to Uint8Array');
-              }
-            } else {
-              throw new Error('Invalid ciphertext type');
+          }
+          
+          // Also encrypt for sender
+          encryptedMetadataForRecipients[senderAddress?.toLowerCase() || ''] = await encryptMetadata(
+            privateMetadata,
+            senderAddress?.toLowerCase() || '',
+            senderAddress?.toLowerCase() || '',
+            fileDocId
+          );
+          
+          // Combine master ciphertext with encrypted metadata
+          const finalPayload = {
+            ciphertext: masterCiphertext,
+            iv,
+            metadata: encryptedMetadataForRecipients
+          };
+          
+          const payloadBytes = new TextEncoder().encode(JSON.stringify(finalPayload));
+          
+          // Create complete metadata object that matches FileMetadata interface
+          const completeMetadata: FileMetadata = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            sender: senderAddress?.toLowerCase() || '',
+            recipient: validRecipients[0]?.address.toLowerCase() || '', // Keep for backward compatibility
+            recipients: validRecipients.map(r => r.address.toLowerCase()), // Add recipients array
+            timestamp: Date.now(),
+            description: message || undefined,
+            iv,
+            sha256,
+            documentId: fileDocId
+          };
+          
+          // Update process step and show uploading notification
+          setProcessStep('uploading');
+          toast.info('Uploading to Arweave...');
+          
+          // Upload to Arweave with complete metadata
+          const txId = await arweaveService.uploadFileToArweave(
+            payloadBytes,
+            completeMetadata, // Use completeMetadata instead of publicMetadata
+            (progress) => {
+              const fileProgress = progress / totalFiles;
+              const baseProgress = (completedUploads / totalFiles) * 100;
+              setUploadProgress(baseProgress + fileProgress);
             }
-            
-            // Upload to Arweave
-            const txId = await arweaveService.uploadFileToArweave(
-              cipherArr,
-              metadata,
-              (progress) => {
-                // Calculate overall progress across all files
-                const fileProgress = progress / totalFiles;
-                const baseProgress = (completedUploads / totalFiles) * 100;
-                setUploadProgress(baseProgress + fileProgress);
-              }
-            );
-            
-            if (!txId) {
-              throw new Error(`Failed to upload file ${file.name} to Arweave`);
-            }
-            
-            // Store the transaction information
-            const fileInfo: SentFileInfo = {
+          );
+          
+          if (!txId) {
+            throw new Error(`Failed to upload file ${file.name} to Arweave`);
+          }
+          
+          // Store success info for all recipients
+          for (const recipient of validRecipients) {
+            successfulUploads.push({
               id: fileDocId,
               name: file.name,
               size: file.size,
@@ -623,18 +733,20 @@ const Send = () => {
               recipientAddress: recipient.address,
               txId: txId,
               timestamp: Date.now(),
-              encryptionKey: encryptionKey,
-            };
-            
-            successfulUploads.push(fileInfo);
-            completedUploads++;
-            
-          } catch (error) {
-            console.error(`Error uploading file ${file.name} to recipient ${recipient.name}:`, error);
-            toast.error(`Failed to upload ${file.name} to ${recipient.name}. Continuing with other files...`);
-            // Continue with other files
+              encryptionKey: generateEncryptionKey()
+            });
           }
+          
+          completedUploads++;
+          
+        } catch (error) {
+          console.error(`Failed to process file ${file.name}:`, error);
+          throw error;
         }
+      }
+      
+      // Process recent recipients after successful uploads
+      for (const recipient of validRecipients) {
         
         // Add to recent recipients if not already there
         if (!recentRecipients.some(r => r.address === recipient.address)) {
@@ -653,15 +765,29 @@ const Send = () => {
         setSentFiles(updatedSentFiles);
         localStorage.setItem('sentFiles', JSON.stringify(updatedSentFiles));
         
+        // Dispatch tuma:newSentFile event for each successful upload for notifications
+        successfulUploads.forEach(upload => {
+          const event = new CustomEvent('tuma:newSentFile', {
+            detail: {
+              id: upload.id,
+              metadata: {
+                name: upload.name,
+                sender: senderAddress?.toLowerCase() || '',
+                recipient: upload.recipientAddress,
+                timestamp: upload.timestamp,
+                isVault: false
+              }
+            }
+          });
+          window.dispatchEvent(event);
+        });
+        
         // Success!
+        setProcessStep('success');
+        toast.success('Files uploaded successfully!');
         setShowProgressDialog(false);
         setShowSuccessDialog(true);
         setUploadComplete(true);
-        
-        // Reset form
-        setFiles([]);
-        setMessage("");
-        setRecipients([{ name: "", address: "" }]);
       } else {
         setShowProgressDialog(false);
         toast.error("Failed to upload any files. Please try again.");
@@ -675,11 +801,45 @@ const Send = () => {
     } finally {
       setSending(false);
       setUploading(false);
+      setProcessStep('idle');
     }
+  };
+
+  // Process notification component
+  const ProcessNotification = () => {
+    if (processStep === 'idle') return null;
+    
+    const getStepInfo = () => {
+      switch (processStep) {
+        case 'encrypting':
+          return { text: 'Encrypting files...', icon: '🔐' };
+        case 'uploading':
+          return { text: 'Uploading to Arweave...', icon: '⬆️' };
+        case 'pending':
+          return { text: 'Transaction pending...', icon: '⏳' };
+        case 'success':
+          return { text: 'Upload complete!', icon: '✅' };
+        default:
+          return { text: '', icon: '' };
+      }
+    };
+    
+    const { text, icon } = getStepInfo();
+    
+    return (
+      <div className="fixed bottom-4 right-4 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-3 flex items-center gap-2 animate-fade-in">
+        <span className="text-lg">{icon}</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{text}</span>
+        {processStep !== 'success' && (
+          <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+        )}
+      </div>
+    );
   };
   // State for recent recipients
   const [recentRecipients, setRecentRecipients] = useState<{ name: string; address: string; lastSent?: number }[]>([]);
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+  const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
 
   // --- Recent Recipients: Local Storage Logic ---
   const RECENT_RECIPIENTS_KEY = 'recentRecipients';
@@ -702,6 +862,17 @@ const Send = () => {
   function loadRecentRecipients(): { name: string; address: string; lastSent?: number }[] {
     return JSON.parse(localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]');
   }
+
+  // Add this useEffect to trigger the animation when 8 files are reached
+  useEffect(() => {
+    if (files.length === 8 && !showCompletionAnimation) {
+      setShowCompletionAnimation(true);
+      // Hide the animation and upload area after 2 seconds
+      setTimeout(() => {
+        setShowCompletionAnimation(false);
+      }, 2000);
+    }
+  }, [files.length, showCompletionAnimation]);
 
   // Load recent recipients when component mounts or address changes
   useEffect(() => {
@@ -766,6 +937,32 @@ const Send = () => {
     return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
   };
 
+  // Get file type color based on file index (cycling through last 3 colors from the image)
+  const getFileTypeColor = (fileName: string, fileSize: number, fileIndex?: number) => {
+    // Use the last 3 colors from the second image: astro, Untit, PRO P (slate/blue tones)
+    const colors = [
+      'bg-slate-400',   // astro - lighter slate blue
+      'bg-slate-600',   // Untit - medium slate blue
+      'bg-slate-700'    // PRO P - darker slate blue
+    ];
+    
+    // If fileIndex is provided, use it to cycle through colors
+    // Otherwise, use a hash of the filename to ensure consistent coloring
+    let colorIndex;
+    if (fileIndex !== undefined) {
+      colorIndex = fileIndex % colors.length;
+    } else {
+      // Create a simple hash from filename for consistent coloring
+      let hash = 0;
+      for (let i = 0; i < fileName.length; i++) {
+        hash = ((hash << 5) - hash + fileName.charCodeAt(i)) & 0xffffffff;
+      }
+      colorIndex = Math.abs(hash) % colors.length;
+    }
+    
+    return colors[colorIndex];
+  };
+
   // Format relative time (e.g., "2 days ago")
   const formatRelativeTime = (date: Date): string => {
     const now = new Date();
@@ -806,61 +1003,92 @@ const Send = () => {
                   <label className="block text-sm font-medium mb-2">
                     Select Files
                   </label>
-                  <label htmlFor="file" tabIndex={0}
-                    className="group transition-all duration-200 border-2 border-dashed border-doc-pale-gray dark:border-gray-600 rounded-xl p-12 text-center bg-white dark:bg-gray-800 hover:shadow-2xl hover:scale-103 hover:bg-blue-50/60 dark:hover:bg-blue-900/40 cursor-pointer ease-in-out flex flex-col items-center justify-center focus-within:shadow-2xl focus-within:scale-103"
-                  >
-                    <FileUp className="mx-auto h-14 w-14 text-doc-medium-gray mb-4 transition-all duration-200 group-hover:text-doc-deep-blue" />
-                    <p className="text-doc-medium-gray mb-6 text-lg font-medium group-hover:text-doc-deep-blue">
-                      Drag and drop files, or click to select
-                    </p>
-                    <input
-                      type="file"
-                      id="file"
-                      accept="*/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                      tabIndex={-1}
-                      multiple
-                    />
-                  </label>
+                  
+                  {/* Show completion animation when 8 files reached */}
+                  {showCompletionAnimation && (
+                    <div className="border-2 border-gray-300 rounded-xl p-12 text-center bg-gray-50 dark:bg-gray-900/20">
+                      <div className="mx-auto h-8 w-8 bg-gray-500 rounded-full flex items-center justify-center mb-4">
+                        <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-600 dark:text-gray-400 mb-2 text-lg font-medium">
+                        Upload Complete!
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Maximum files reached (8/8)
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Regular upload area - only show when less than 8 files and not showing animation */}
+                  {files.length < 8 && !showCompletionAnimation && (
+                    <label htmlFor="file" tabIndex={0}
+                      className="group transition-all duration-200 border-2 border-dashed border-doc-pale-gray dark:border-gray-600 rounded-xl p-12 text-center bg-white dark:bg-gray-800 hover:shadow-2xl hover:scale-103 hover:bg-blue-50/60 dark:hover:bg-blue-900/40 cursor-pointer ease-in-out flex flex-col items-center justify-center focus-within:shadow-2xl focus-within:scale-103"
+                    >
+                      <FileUp className="mx-auto h-14 w-14 text-doc-medium-gray mb-4 transition-all duration-200 group-hover:text-doc-deep-blue" />
+                      <p className="text-doc-medium-gray mb-6 text-lg font-medium group-hover:text-doc-deep-blue">
+                        Drag and drop files, or click to select
+                      </p>
+                      <input
+                        type="file"
+                        id="file"
+                        accept="*/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                        tabIndex={-1}
+                        multiple
+                      />
+                    </label>
+                  )}
                   
                   {files.length > 0 && (
-                    <div className="mt-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-sm font-medium">Selected Files ({files.length})</h3>
+                    <div className={files.length < 8 && !showCompletionAnimation ? "mt-6" : "mt-4"}>
+                      <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-sm font-medium">Selected Files ({files.length}/8)</h3>
                         <p className="text-xs text-doc-medium-gray">
-                          Total size: {(getTotalFileSize() / 1024 / 1024).toFixed(2)} MB
+                          Total size: {(getTotalFileSize() / 1024 / 1024).toFixed(2)}/500 MB
+                          {getTotalFileSize() > 400 * 1024 * 1024 && (
+                            <span className="ml-2 text-orange-500 font-medium">
+                              ⚠️ Approaching limit
+                            </span>
+                          )}
                         </p>
                       </div>
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {files.map((file, index) => (
-                          <div key={index} className="flex items-center p-3 bg-doc-soft-blue dark:bg-blue-900/30 rounded-lg animate-scale-in">
-                            <div className="mr-3">
-                              <div className="w-10 h-10 rounded-lg bg-white dark:bg-gray-700 flex items-center justify-center">
-                                <FileUp size={20} className="text-doc-deep-blue" />
+                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                        <div className="flex items-center justify-start gap-6">
+                          {files.map((file, index) => {
+                            const fileExtension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+                            const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+                            const colorGradient = getFileTypeColor(file.name, file.size, index);
+                            
+                            return (
+                              <div key={index} className="flex flex-col items-center animate-scale-in">
+                                <div className="relative group">
+                                  <div className={`w-14 h-14 rounded-full ${colorGradient} dark:opacity-90 flex items-center justify-center text-white font-semibold text-xs hover:shadow-2xl hover:scale-105 transition-all duration-300 ring-2 ring-white/20`}>
+                                    {fileExtension.substring(0, 3)}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeFile(index)}
+                                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600"
+                                  >
+                                    <X size={12} className="text-white" />
+                                  </button>
+                                </div>
+                                <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                                  {fileSizeMB} MB
+                                </p>
                               </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{file.name}</p>
-                              <p className="text-xs text-doc-medium-gray">
-                                {(file.size / 1024 / 1024).toFixed(2)} MB
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeFile(index)}
-                              className="p-1.5 rounded-full hover:bg-white dark:hover:bg-gray-700 transition-colors text-doc-medium-gray"
-                            >
-                              <X size={16} />
-                            </button>
-                          </div>
-                        ))}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                  <div className="mb-8">
+                <div className="mb-8 mt-8">
                     <div className="flex justify-between items-center mb-3">
                       <label className="block text-sm font-medium">
                         Recipients
@@ -870,54 +1098,72 @@ const Send = () => {
                       </span>
                     </div>
                     
-                    {/* Recipient Chips */}
-                    <div className="flex flex-wrap gap-2 mb-3 min-h-[44px] items-start">
-                      {recipients.map((recipient, index) => (
-                        <div 
-                          key={index}
-                          className="inline-flex items-center bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200 rounded-full py-1.5 pl-3 pr-2 text-sm font-medium transition-all duration-200 hover:bg-blue-100 dark:hover:bg-blue-800/40"
-                        >
-                          <span className="mr-2">
-                            {recipient.name || 'Unnamed'}
-                            {recipient.address && (
-                              <span className="ml-1 text-blue-500 dark:text-blue-300">
-                                • {recipient.address.substring(0, 6)}...{recipient.address.slice(-4)}
-                              </span>
-                            )}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setRecipients(recipients.filter((_, i) => i !== index));
-                            }}
-                            className="ml-1 p-0.5 rounded-full hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
-                            aria-label="Remove recipient"
-                          >
-                            <X size={14} className="text-blue-500 dark:text-blue-300" />
-                          </button>
-                        </div>
-                      ))}
-                      
-                      {recipients.length < 5 && (
-                        <button
-                          type="button"
-                          onClick={() => setRecipients([...recipients, {name: "", address: ""}])}
-                          className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors group"
-                        >
-                          <span className="inline-flex items-center justify-center w-6 h-6 mr-1 bg-blue-100 dark:bg-blue-900/40 rounded-full group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 dark:text-blue-400">
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                          </span>
-                          Add recipient
-                        </button>
-                      )}
-                    </div>
-                    
-                    {/* Recipient Form */}
+                    {/* Recipients Display */}
                     {recipients.length > 0 && (
+                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 mb-4">
+                        <div className="flex items-center gap-2 overflow-x-auto">
+                          {recipients.map((recipient, index) => {
+                            const colors = [
+                              'bg-slate-600',    // Dark blue-gray (lloyd's color)
+                              'bg-gray-400'      // Light gray (lilly's color)
+                            ];
+                            const dotColor = colors[index % colors.length];
+                            
+                            return (
+                              <div 
+                                key={index}
+                                className="inline-flex items-center bg-white dark:bg-gray-700 rounded-full py-1 pl-1 pr-2 text-sm transition-all duration-200 hover:shadow-md group whitespace-nowrap cursor-pointer"
+                                onClick={() => {
+                                  // Move recipient to edit form
+                                  setCurrentRecipient({
+                                    name: recipient.name,
+                                    address: recipient.address
+                                  });
+                                  // Remove from list
+                                  setRecipients(recipients.filter((_, i) => i !== index));
+                                  setShowRecipientDialog(true);
+                                }}
+                                title={`Click to edit ${recipient.name}`}
+                              >
+                                <div className={`w-5 h-5 rounded-full ${dotColor} mr-1.5 flex-shrink-0`}></div>
+                                <span className="text-gray-700 dark:text-gray-300 font-medium text-xs">
+                                  {recipient.name.length > 5 ? recipient.name.substring(0, 5) : recipient.name}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setRecipients(recipients.filter((_, i) => i !== index));
+                                  }}
+                                  className="ml-1.5 p-0.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200"
+                                  aria-label="Remove recipient"
+                                >
+                                  <X size={12} className="text-gray-500 dark:text-gray-400" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {/* Dark Gray Plus Button - Only show if less than 5 recipients */}
+                          {recipients.length < 5 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCurrentRecipient({name: "", address: ""});
+                                setShowRecipientDialog(true);
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 bg-gray-600 hover:bg-gray-700 rounded-full transition-all duration-200 hover:shadow-md"
+                              title="Add recipient"
+                            >
+                              <Plus size={14} className="text-white" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Recipient Form - Only show if no recipients added */}
+                    {recipients.length === 0 && (
                       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-200">
                         <div className="mb-4">
                           <label 
@@ -935,11 +1181,15 @@ const Send = () => {
                               id="recipient-name"
                               placeholder="Enter name or organization"
                               className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm transition-all duration-200"
-                              value={recipients[0]?.name || ''}
-                              onChange={(e) => {
-                                const newRecipients = [...recipients];
-                                newRecipients[0].name = e.target.value;
-                                setRecipients(newRecipients);
+                              value={currentRecipient.name}
+                              onChange={(e) => setCurrentRecipient({...currentRecipient, name: e.target.value})}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && currentRecipient.name && currentRecipient.address) {
+                                  e.preventDefault();
+                                  setRecipients([...recipients, currentRecipient]);
+                                  setCurrentRecipient({name: "", address: ""});
+                                  saveRecentRecipient(currentRecipient);
+                                }
                               }}
                             />
                           </div>
@@ -964,47 +1214,19 @@ const Send = () => {
                               id="recipient-address"
                               placeholder="0x... or arweave:..."
                               className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm font-mono transition-all duration-200"
-                              value={recipients[0]?.address || ''}
-                              onChange={(e) => {
-                                const newRecipients = [...recipients];
-                                newRecipients[0].address = e.target.value;
-                                setRecipients(newRecipients);
+                              value={currentRecipient.address}
+                              onChange={(e) => setCurrentRecipient({...currentRecipient, address: e.target.value})}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && currentRecipient.name && currentRecipient.address) {
+                                  e.preventDefault();
+                                  setRecipients([...recipients, currentRecipient]);
+                                  setCurrentRecipient({name: "", address: ""});
+                                  saveRecentRecipient(currentRecipient);
+                                }
                               }}
                             />
                           </div>
                         </div>
-                        
-                        {/* Recent Recipients */}
-                        {recentRecipients.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                            <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                              Recent Recipients
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {recentRecipients.slice(0, 3).map((recent, i) => (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={() => {
-                                    const newRecipients = [...recipients];
-                                    newRecipients[0] = {
-                                      name: recent.name,
-                                      address: recent.address
-                                    };
-                                    setRecipients(newRecipients);
-                                  }}
-                                  className="inline-flex items-center text-xs px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 rounded-full transition-colors text-gray-700 dark:text-gray-200"
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-green-400 mr-2"></span>
-                                  {recent.name}
-                                  <span className="ml-1.5 text-gray-400 dark:text-gray-400 font-mono">
-                                    {recent.address.substring(0, 4)}...{recent.address.slice(-4)}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                     
@@ -1033,26 +1255,10 @@ const Send = () => {
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    disabled={sending}
-                    className={`
-                      inline-flex items-center px-6 py-3 rounded-lg
-                      ${sending
-                        ? "bg-blue-400 cursor-not-allowed"
-                        : "bg-doc-deep-blue hover:bg-blue-600"}
-                      text-white font-medium transition-colors
-                    `}
+                    className="inline-flex items-center px-6 py-3 rounded-lg bg-doc-deep-blue hover:bg-blue-600 text-white font-medium transition-colors"
                   >
-                    {sending ? (
-                      <>
-                        <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                        Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <SendIcon size={18} className="mr-2" />
-                        Send
-                      </>
-                    )}
+                    <SendIcon size={18} className="mr-2" />
+                    Send
                   </button>
                 </div>
               </form>
@@ -1072,33 +1278,43 @@ const Send = () => {
                     <p className="text-doc-medium-gray">Loading recent recipients...</p>
                   </div>
                 ) : recentRecipients.length > 0 ? (
-                  recentRecipients.slice(0, 4).map((recipient) => (
-                    <button
-                      key={recipient.address}
-                      onClick={() => {
-                        // Update the first recipient in the list with the selected recipient
-                        const updatedRecipients = [...recipients];
-                        updatedRecipients[0] = {
-                          name: recipient.name,
-                          address: recipient.address
-                        };
-                        setRecipients(updatedRecipients);
-                      }}
-                      className="flex items-center w-full p-3 rounded-lg hover:bg-doc-soft-blue dark:hover:bg-blue-900/30 transition-colors text-left"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-doc-deep-blue text-white flex items-center justify-center mr-3">
-                        {recipient.name.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{recipient.name}</p>
-                        <p className="text-xs text-doc-medium-gray truncate">{recipient.address}</p>
-                      </div>
-                      <div className="text-xs text-doc-medium-gray flex items-center">
-                        <Clock size={12} className="mr-1" />
-                        {formatRelativeTime(new Date(recipient.lastSent))}
-                      </div>
-                    </button>
-                  ))
+                  recentRecipients.slice(0, 4).map((recipient, index) => {
+                    const colors = [
+                      'bg-slate-600',    // Dark blue-gray (lloyd's color)
+                      'bg-gray-400'      // Light gray (lilly's color)
+                    ];
+                    const circleColor = colors[index % colors.length];
+                    
+                    return (
+                      <button
+                        key={recipient.address}
+                        onClick={() => {
+                          // Add directly to recipients list if not already added
+                          const isAlreadyAdded = recipients.some(r => r.address === recipient.address);
+                          if (!isAlreadyAdded && recipients.length < 5) {
+                            setRecipients([...recipients, {
+                              name: recipient.name,
+                              address: recipient.address
+                            }]);
+                          }
+
+                        }}
+                        className="flex items-center w-full p-3 rounded-lg hover:bg-doc-soft-blue dark:hover:bg-blue-900/30 transition-colors text-left"
+                      >
+                        <div className={`w-8 h-8 rounded-full ${circleColor} text-white flex items-center justify-center mr-3`}>
+                          {/* Removed: {recipient.name.charAt(0)} */}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{recipient.name.length > 15 ? recipient.name.substring(0, 15) + '...' : recipient.name}</p>
+                          <p className="text-xs text-doc-medium-gray truncate">{recipient.address.length > 18 ? recipient.address.substring(0, 18) + '...' : recipient.address}</p>
+                        </div>
+                        <div className="text-xs text-doc-medium-gray flex items-center">
+                          <Clock size={12} className="mr-1" />
+                          {formatRelativeTime(new Date(recipient.lastSent))}
+                        </div>
+                      </button>
+                    );
+                  })
                 ) : (
                   <div className="py-6 text-center text-doc-medium-gray">
                     <p>No recent recipients found</p>
@@ -1117,41 +1333,37 @@ const Send = () => {
                 </li>
                 <li className="flex">
                   <span className="text-doc-deep-blue mr-2">•</span>
-                  Maximum file size is 200MB
+                  Maximum file size is 500MB
                 </li>
                 <li className="flex">
                   <span className="text-doc-deep-blue mr-2">•</span>
                   Files exist forever, only pay once
                 </li>
+                <li className="flex">
+                  <span className="text-doc-deep-blue mr-2">•</span>
+                  Prices are calculated in realtime
+                </li>
               </ul>
             </div>
             
             <div className="glass-panel p-6 mt-6">
-              <h3 className="font-medium mb-4">Pricing Tiers</h3>
+              <h3 className="font-medium mb-4">Real-Time Pricing Tiers</h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 1 (&lt;100KB):</span>
-                  <span className="font-medium">0.05 USDC</span>
+                  <span className="text-doc-medium-gray">1 MB:</span>
+                  <span className="font-medium">{calculateTierPrice(1)}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 2 (100KB-10MB):</span>
-                  <span className="font-medium">0.50 USDC</span>
+                  <span className="text-doc-medium-gray">300 MB:</span>
+                  <span className="font-medium">{calculateTierPrice(300)}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 3 (10-20MB):</span>
-                  <span className="font-medium">1.00 USDC</span>
+                  <span className="text-doc-medium-gray">500 MB:</span>
+                  <span className="font-medium">{calculateTierPrice(500)}</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 4 (20-50MB):</span>
-                  <span className="font-medium">2.00 USDC</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 5 (50-100MB):</span>
-                  <span className="font-medium">3.00 USDC</span>
-                </li>
-                <li className="flex justify-between">
-                  <span className="text-doc-medium-gray">Tier 6 (&gt;100MB):</span>
-                  <span className="font-medium">5.00 USDC</span>
+                  <span className="text-doc-medium-gray">Custom sizes:</span>
+                  <span className="font-medium">Real-time calculated</span>
                 </li>
               </ul>
             </div>
@@ -1163,12 +1375,13 @@ const Send = () => {
         onOpenChange={(open) => {
           if (!open) {
             setShowPaymentDialog(false);
-            // Only clear/reset form if upload has started or completed
-            if (uploading || uploadComplete) {
+            // Only clear/reset form if upload has started or completed, or payment was successful
+            if (uploading || uploadComplete || paymentStatus === 'success') {
               setPaymentStatus('idle');
               setPaymentError(null);
               setFiles([]);
-              setRecipients([{name: "", address: ""}]);
+              setRecipients([]);
+              setCurrentRecipient({ name: "", address: "" });
               setMessage("");
             }
           }
@@ -1192,29 +1405,35 @@ const Send = () => {
               You can close this dialog. You will be notified via the notification bell when your file upload is complete.
             </div>
           ) : (
-            <div className="mb-4 flex flex-col items-center">
-              <p className="text-doc-medium-gray mb-2 text-center">
+            <div className="w-full">
+              <p className="text-gray-600 dark:text-gray-400 mb-6 text-center text-sm">
                 To send these files securely, a service fee is required. The platform will cover Arweave storage costs.
               </p>
-              <div className="mb-2 text-center">
-                <span className="font-medium">Service Fee:</span>
-                <span className="ml-2 text-doc-deep-blue">{serviceFee} USDC</span>
+              
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Service Fee</p>
+                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">${serviceFee} USDC</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">File Size Tier</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{fileSizeTier}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Files</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{files.length}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Recipients</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{recipients.filter(r => r.name && r.address).length}</p>
+                  </div>
+                </div>
               </div>
-              <div className="mb-2 text-center">
-                <span className="font-medium">File size tier:</span>
-                <span className="ml-2 text-doc-deep-blue">{fileSizeTier}</span>
-              </div>
-              <div className="mb-2 text-center">
-                <span className="font-medium">Files:</span>
-                <span className="ml-2 text-doc-deep-blue">{files.length}</span>
-              </div>
-              <div className="mb-2 text-center">
-                <span className="font-medium">Recipients:</span>
-                <span className="ml-2 text-doc-deep-blue">{recipients.filter(r => r.name && r.address).length}</span>
-              </div>
-              <div className="text-xs text-doc-medium-gray mt-1 text-center">
+              
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6">
                 Only the sender and recipients will be able to access and decrypt these files.
-              </div>
+              </p>
             </div>
           )}
           {/* Uploading and upload complete states */}
@@ -1256,59 +1475,78 @@ const Send = () => {
               {showPaymentDialog && (
                 <div className="w-full">
                   <Checkout
-                    chargeHandler={async () => {
-                      try {
-                        console.log('Initiating payment...');
-                        const chargeId = await chargeHandler();
-                        console.log('Payment initiated with charge ID:', chargeId);
-                        return chargeId;
-                      } catch (error) {
-                        console.error('Error in chargeHandler:', error);
-                        throw error;
-                      }
-                    }}
-                    onStatus={(status: { statusName: string; statusData?: any }) => {
-                      console.log('Payment status update:', status);
-                      const { statusName, statusData } = status;
-                      
-                      try {
-                        if (statusName === 'success') {
-                          console.log('Payment successful, starting upload...');
-                          setPaymentStatus('success');
-                          setPaymentError(null);
-                          setShowPaymentDialog(false);
-                          handlePostPaymentUpload().catch(err => {
-                            console.error('Error in post-payment upload:', err);
-                            setUploadError('Upload failed after successful payment: ' + (err.message || 'Unknown error'));
-                          });
-                        } else if (statusName === 'error') {
-                          console.error('Payment error:', status);
-                          setPaymentStatus('error');
-                          setPaymentError(
-                            (statusData as { message?: string })?.message || 
-                            'Payment failed. Please try again.'
-                          );
-                        } else if (statusName === 'pending') {
-                          console.log('Payment pending...');
-                          setPaymentStatus('processing');
-                        } else if (['init', 'fetchingData', 'ready'].includes(statusName)) {
-                          console.log('Payment processing...');
-                          setPaymentStatus('processing');
+              chargeHandler={async () => {
+                try {
+                  console.log('Initiating payment...');
+                  const chargeId = await chargeHandler();
+                  console.log('Payment initiated with charge ID:', chargeId);
+                  return chargeId;
+                } catch (error) {
+                  console.error('Error in chargeHandler:', error);
+                  throw error;
+                }
+              }}
+              onStatus={(status: { statusName: string; statusData?: any }) => {
+                console.log('Payment status update:', status);
+                const { statusName, statusData } = status;
+                
+                try {
+                  if (statusName === 'success') {
+                    console.log('Payment successful, starting upload...');
+                    setPaymentStatus('success');
+                    setPaymentError(null);
+                    setShowPaymentDialog(false);
+                    // Show upload success popup
+                    setShowUploadSuccessPopup(true);
+                    // Clear payment state to prevent retries
+                    setPaymentStatus('idle');
+                    handlePostPaymentUpload().then(() => {
+                      // Dispatch custom event for notification
+                      const event = new CustomEvent('uploadComplete', {
+                        detail: {
+                          fileName: files[0]?.name || 'File',
+                          success: true
                         }
-                      } catch (error) {
-                        console.error('Error in payment status handler:', error);
-                        setPaymentStatus('error');
-                        setPaymentError('An unexpected error occurred');
-                      }
-                    }}
-                  >
-                    <CheckoutButton 
-                      coinbaseBranded 
-                      className="w-full py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors mb-2"
-                      disabled={!isConnected}
-                    />
-                    <CheckoutStatus />
-                  </Checkout>
+                      });
+                      window.dispatchEvent(event);
+                    }).catch(err => {
+                      console.error('Error in post-payment upload:', err);
+                      const errorMessage = err.message || 'Unknown error occurred';
+                      
+                      // Show user-friendly error message instead of notification
+                      toast.error(`Transaction failed: ${errorMessage}. Please try again now or later.`);
+                      
+                      setUploadError(`Upload failed after successful payment: ${errorMessage}`);
+                      setPaymentStatus('error');
+                    });
+                  } else if (statusName === 'error') {
+                    console.error('Payment error:', status);
+                    setPaymentStatus('error');
+                    setPaymentError(
+                      (statusData as { message?: string })?.message || 
+                      'Payment failed. Please try again.'
+                    );
+                  } else if (statusName === 'pending') {
+                    console.log('Payment pending...');
+                    setPaymentStatus('processing');
+                  } else if (['init', 'fetchingData', 'ready'].includes(statusName)) {
+                    console.log('Payment processing...');
+                    setPaymentStatus('processing');
+                  }
+                } catch (error) {
+                  console.error('Error in payment status handler:', error);
+                  setPaymentStatus('error');
+                  setPaymentError('An unexpected error occurred');
+                }
+              }}
+            >
+              <CheckoutButton 
+                coinbaseBranded 
+                className="w-full py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors mb-2"
+                disabled={!isConnected}
+              />
+              <CheckoutStatus />
+            </Checkout>
                   {!isConnected && (
                     <div className="text-red-500 text-sm mt-2 text-center">
                       Please connect your wallet to proceed with payment
@@ -1316,40 +1554,160 @@ const Send = () => {
                   )}
                 </div>
               )}
-              {paymentStatus === 'error' as typeof paymentStatus && (
-                <div className="text-red-600 flex flex-col">
-                  Payment failed: {paymentError}
-                  <button onClick={retryPayment} className="underline text-blue-600 mt-1">Retry Payment</button>
+              {paymentStatus === 'error' as typeof paymentStatus && paymentStatus !== 'success' && (
+                <div className="w-full mt-4">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <p className="text-red-600 dark:text-red-400 text-sm font-medium mb-1">
+                      Something went wrong. Please try again.
+                    </p>
+                    <p className="text-red-500 dark:text-red-300 text-xs mb-3">
+                      Payment failed: {paymentError}
+                    </p>
+                    <button 
+                      onClick={retryPayment} 
+                      className="text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline"
+                    >
+                      Retry Payment
+                    </button>
+                  </div>
                 </div>
               )}
             </>
           )}
         </DialogContent>
       </Dialog>
-      {/* Upload Notification Bell */}
-      <UploadNotification visible={uploadComplete && !uploading && !uploadError} />
-    </div>
-  );
-};
-
-// --- Upload Notification Component ---
-import React from 'react';
-
-const UploadNotification = ({ visible }: { visible: boolean }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
-  if (!visible) return null;
-  return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg animate-fade-in cursor-pointer"
-      onClick={() => setShowTooltip((v) => !v)}
-      title="File upload complete">
-      <Bell size={28} />
-      {showTooltip && (
-        <div className="absolute bottom-16 right-0 bg-white text-blue-800 rounded shadow-lg px-4 py-2 text-sm font-semibold">
-          File upload complete!
+      
+      {/* Upload Success Popup */}
+      {showUploadSuccessPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 text-center">
+            <div className="mb-4">
+              <svg width="64" height="64" fill="none" viewBox="0 0 64 64" className="mx-auto">
+                <circle cx="32" cy="32" r="32" fill="#22c55e" opacity="0.15"/>
+                <circle cx="32" cy="32" r="24" fill="#22c55e"/>
+                <path d="M22 34l8 8 12-14" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Payment Successful!
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Now uploading your file to Arweave
+            </p>
+            <button
+              onClick={() => setShowUploadSuccessPopup(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              OK
+            </button>
+          </div>
         </div>
       )}
-    </div>
-  );
+      
+
+      
+      {/* Recipient Dialog */}
+      <Dialog open={showRecipientDialog} onOpenChange={setShowRecipientDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Recipient</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Recipient Name
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User size={16} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter name or organization"
+                  className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm transition-all duration-200"
+                  value={currentRecipient.name}
+                  onChange={(e) => setCurrentRecipient({...currentRecipient, name: e.target.value})}
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Wallet Address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                    <rect x="2" y="6" width="20" height="12" rx="2" />
+                    <path d="M22 10H2" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="0x..., arweave:..., or name.eth"
+                  className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm font-mono transition-all duration-200"
+                  value={currentRecipient.address}
+                  onChange={(e) => handleAddressChange(e.target.value)}
+                  disabled={isResolvingName}
+                />
+                {isResolvingName && (
+                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                   </div>
+                 )}
+                </div>
+                {isResolvingName && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    Resolving name to address...
+                  </p>
+                )}
+                {currentRecipient.address.includes('.eth') && !currentRecipient.address.startsWith('0x') && !isResolvingName && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    ⚠️ Name not yet resolved. Please wait for resolution.
+                  </p>
+                )}
+              </div>
+          </div>
+          
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setShowRecipientDialog(false)}
+              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentRecipient.name && currentRecipient.address) {
+                  // Check if address is an unresolved ENS/Base name
+                  if ((currentRecipient.address.includes('.eth') || currentRecipient.address.includes('.base.eth')) && 
+                      !currentRecipient.address.startsWith('0x')) {
+                    toast.error('Please wait for the name to be resolved to an address before adding.');
+                    return;
+                  }
+                  setRecipients([...recipients, currentRecipient]);
+                  setCurrentRecipient({name: "", address: ""});
+                  saveRecentRecipient(currentRecipient);
+                  setShowRecipientDialog(false);
+                }
+              }}
+              disabled={!currentRecipient.name || !currentRecipient.address || isResolvingName}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              Add Recipient
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+       
+       {/* Process Notification */}
+       <ProcessNotification />
+     </div>
+   );
 };
+
+
 
 export default Send;

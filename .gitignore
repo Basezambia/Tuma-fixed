@@ -25,3 +25,6 @@ dist-ssr
 
 .vercel
 
+# TUMA_SHARE directory
+TUMA_SHARE/
+

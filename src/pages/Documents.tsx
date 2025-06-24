@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
-import { ArrowDownToLine, ArrowUpToLine, File, FilePenLine, FileSearch, Folder, Search, AlertCircle } from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { ArrowDownToLine, ArrowUpToLine, File, FilePenLine, FileSearch, Folder, Search, AlertCircle, Grid, List, ExternalLink, MoreVertical } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, StoredFile } from "@/lib/arweave-service";
 import { useAccount } from 'wagmi';
-import { decryptFileBufferHKDF } from '@/lib/encryption';
+import { decryptFileBufferHKDF, decryptFileForMultipleRecipients, decryptMetadata } from '../lib/encryption';
 import { format as formatDateFns } from 'date-fns';
 import { fetchPaymentStatus, PaymentStatus } from "@/lib/payment-status";
+import { useLocation, useNavigate } from 'react-router-dom';
 
 interface FileWithPayment extends StoredFile {
   isPaid?: boolean;
@@ -18,12 +19,26 @@ const Documents = () => {
   const [loading, setLoading] = useState(true);
   const [receivedDocs, setReceivedDocs] = useState<FileWithPayment[]>([]);
   const [sentDocs, setSentDocs] = useState<FileWithPayment[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<string, PaymentStatus>>({});
   const [statusLoading, setStatusLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('received');
 
-  // Get user's Ethereum address
+  // Get user's Ethereum address and location
   const { address: userAddress } = useAccount();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Handle URL parameters for tab selection
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const tab = urlParams.get('tab');
+    if (tab === 'sent' || tab === 'received') {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
 
   // Listen for new sent files (for instant feedback after sending)
   useEffect(() => {
@@ -42,14 +57,38 @@ const Documents = () => {
       try {
         setLoading(true);
         setError(null);
-        // Fetch received documents
+        // Around line 45-50, after fetching files:
         const received = await arweaveService.getReceivedFiles(userAddress?.toLowerCase() || "");
-        // Fetch sent documents
         const sent = await arweaveService.getSentFiles(userAddress?.toLowerCase() || "");
-        setReceivedDocs(received);
-        setSentDocs(sent);
+        
+        // Check for new received files and emit events
+        const previousReceivedIds = receivedDocs.map(doc => doc.id);
+        const newReceivedFiles = received.filter(doc => !previousReceivedIds.includes(doc.id));
+        
+        newReceivedFiles.forEach(file => {
+          // Emit event for new received file
+          const event = new CustomEvent('tuma:newReceivedFile', {
+            detail: { id: file.id, metadata: file.metadata }
+          });
+          window.dispatchEvent(event);
+        });
+        
+        // Filter out vault files from both received and sent documents
+        const filteredReceived = received.filter(file => 
+          !file.metadata.description?.includes("[VAULT]") &&
+          !file.metadata.documentId?.startsWith("vault_")
+        );
+        
+        const filteredSent = sent.filter(file => 
+          !file.metadata.description?.includes("[VAULT]") &&
+          !file.metadata.documentId?.startsWith("vault_")
+        );
+        
+        setReceivedDocs(filteredReceived);
+        setSentDocs(filteredSent);
+        
         // After fetching, fetch payment statuses for all docs with chargeId
-        const allDocs = [...received, ...sent];
+        const allDocs = [...filteredReceived, ...filteredSent];
         const statusMap: Record<string, PaymentStatus> = {};
         setStatusLoading(true);
         await Promise.all(allDocs.map(async (doc) => {
@@ -71,6 +110,20 @@ const Documents = () => {
     };
     if (userAddress) fetchDocuments();
   }, [userAddress]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdown && !(event.target as Element).closest('.relative')) {
+        setOpenDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openDropdown]);
 
   // Format date from timestamp
   const formatDate = (timestamp: number) => {
@@ -126,40 +179,110 @@ const Documents = () => {
     try {
       const { data, metadata } = await arweaveService.getFile(docId);
       if (!userAddress) throw new Error('Wallet not connected');
+      
       const isSender = typeof sender === 'string' && typeof userAddress === 'string' && userAddress.toLowerCase() === sender.toLowerCase();
-      const isRecipient = typeof recipient === 'string' && typeof userAddress === 'string' && userAddress.toLowerCase() === recipient.toLowerCase();
-      if (!isSender && !isRecipient) throw new Error('You do not have permission to decrypt this file');
-      if (!iv) throw new Error('Missing IV for decryption');
-      const decryptAddrA = sender.toLowerCase();
-      const decryptAddrB = recipient.toLowerCase();
-      // --- Robust ciphertext extraction for decryption ---
-      let ciphertextBase64;
+      
+      // Check if user is among recipients (handle both single recipient and multiple recipients)
+      let isRecipient = false;
+      if (typeof recipient === 'string' && typeof userAddress === 'string') {
+        isRecipient = userAddress.toLowerCase() === recipient.toLowerCase();
+      }
+      
+      // Also check if user is in the recipients array from metadata
+      if (!isRecipient && metadata.recipients && Array.isArray(metadata.recipients)) {
+        isRecipient = metadata.recipients.some((r: any) => 
+          typeof r === 'string' ? r.toLowerCase() === userAddress.toLowerCase() : 
+          r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress.toLowerCase()
+        );
+      }
+      
+      if (!isSender && !isRecipient) {
+        throw new Error('You do not have permission to decrypt this file');
+      }
+      
+      // Convert data to string for parsing
+      let dataString: string;
       if (data instanceof Uint8Array) {
-        ciphertextBase64 = uint8ArrayToBase64(data);
+        dataString = new TextDecoder().decode(data);
       } else if (typeof data === 'string') {
-        ciphertextBase64 = btoa(data);
+        dataString = data;
       } else {
         throw new Error('Unsupported data type for decryption');
       }
-      // --- SHA-256 integrity check (if present) ---
-      if (metadata && metadata.sha256) {
-        const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0)));
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        if (sha256 !== metadata.sha256) {
-          toast.error('Integrity check failed: File hash does not match. Download aborted.');
-          return;
-        }
-      }
-      let decrypted;
+      
+      let decrypted: Uint8Array;
+      
       try {
-        // Use HKDF-based decryption with documentId as salt if available, fallback to docId (legacy)
+        // Try to parse as new multi-recipient format
+        const payload = JSON.parse(dataString);
+        
+        if (payload.ciphertext && payload.iv && payload.metadata) {
+          // New multi-recipient format
+          const userKey = userAddress.toLowerCase();
+          
+          if (!payload.metadata[userKey]) {
+            throw new Error('No encrypted metadata found for this user');
+          }
+          
+          // Decrypt metadata to get recipient keys
+          const decryptedMetadata = await decryptMetadata(
+            payload.metadata[userKey],
+            sender.toLowerCase(),
+            userAddress.toLowerCase(),
+            metadata.documentId || docId
+          );
+          
+          // Use the new multi-recipient decryption
+          decrypted = await decryptFileForMultipleRecipients(
+            payload.ciphertext,
+            payload.iv,
+            decryptedMetadata.recipientKeys,
+            sender.toLowerCase(),
+            userAddress.toLowerCase(),
+            metadata.documentId || docId
+          );
+          
+          // Verify SHA-256 if available in decrypted metadata
+          if (decryptedMetadata.sha256) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(payload.ciphertext), c => c.charCodeAt(0)));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            if (sha256 !== decryptedMetadata.sha256) {
+              toast.error('Integrity check failed: File hash does not match. Download aborted.');
+              return;
+            }
+          }
+        } else {
+          throw new Error('Invalid payload format');
+        }
+      } catch (parseError) {
+        // Fallback to legacy single-recipient format
+        if (!iv) throw new Error('Missing IV for decryption');
+        
+        const ciphertextBase64 = data instanceof Uint8Array ? uint8ArrayToBase64(data) : btoa(dataString);
+        
+        // SHA-256 integrity check for legacy format
+        if (metadata && metadata.sha256) {
+          const hashBuffer = await crypto.subtle.digest('SHA-256', Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0)));
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          if (sha256 !== metadata.sha256) {
+            toast.error('Integrity check failed: File hash does not match. Download aborted.');
+            return;
+          }
+        }
+        
+        // Use legacy HKDF-based decryption
         const salt = metadata.documentId || docId;
-        decrypted = await decryptFileBufferHKDF(ciphertextBase64, iv, decryptAddrA, decryptAddrB, salt);
-      } catch (decryptionError) {
-        toast.error('Decryption failed: ' + (decryptionError instanceof Error ? decryptionError.message : 'Unknown error'));
-        return;
+        decrypted = await decryptFileBufferHKDF(
+          ciphertextBase64,
+          iv,
+          sender.toLowerCase(),
+          userAddress.toLowerCase(),
+          salt
+        );
       }
+      
       const blob = new Blob([decrypted], { type: metadata.type || 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -168,7 +291,9 @@ const Documents = () => {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success('File decrypted and downloaded!');
+      
     } catch (error) {
+      console.error('Download error:', error);
       toast.error('Download failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
@@ -221,10 +346,10 @@ const Documents = () => {
     const lastPage = Math.ceil(total/PAGE_SIZE);
     if (lastPage <= 1) return null;
     return (
-      <div className="flex justify-end items-center gap-2 mt-4 bg-gray-100 dark:bg-[#191919] rounded-lg p-2">
-        <button disabled={page === 1} onClick={()=>setPage(page-1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 disabled:opacity-50">Prev</button>
+      <div className="flex justify-end items-center gap-2 mt-4 bg-white dark:bg-[#191919] rounded-lg p-2">
+        <button disabled={page === 1} onClick={()=>setPage(page-1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">Prev</button>
         <span className="text-sm">Page {page} of {lastPage}</span>
-        <button disabled={page === lastPage} onClick={()=>setPage(page+1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 disabled:opacity-50">Next</button>
+        <button disabled={page === lastPage} onClick={()=>setPage(page+1)} className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">Next</button>
       </div>
     );
   }
@@ -253,24 +378,50 @@ const Documents = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex items-center space-x-1">
-              <span className="text-sm text-doc-medium-gray mr-2">Sort by:</span>
-              <select
-                className="bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg border-none px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none"
-                value={sortKey}
-                onChange={e => setSortKey(e.target.value as typeof sortKey)}
-              >
-                <option value="date-desc">Date (Newest)</option>
-                <option value="date-asc">Date (Oldest)</option>
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
-                <option value="size-desc">Size (Largest)</option>
-                <option value="size-asc">Size (Smallest)</option>
-              </select>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-1">
+                <span className="text-sm text-doc-medium-gray mr-2">Sort by:</span>
+                <select
+                  className="bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg border-none px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                  value={sortKey}
+                  onChange={e => setSortKey(e.target.value as typeof sortKey)}
+                >
+                  <option value="date-desc">Date (Newest)</option>
+                  <option value="date-asc">Date (Oldest)</option>
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="size-desc">Size (Largest)</option>
+                  <option value="size-asc">Size (Smallest)</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-1 bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  title="List view"
+                >
+                  <List size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  title="Grid view"
+                >
+                  <Grid size={16} />
+                </button>
+              </div>
             </div>
           </div>
           
-          <Tabs defaultValue="received" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full dark:bg-gray-900 dark:p-4 dark:rounded-lg">
             <TabsList className="mb-6">
               <TabsTrigger value="received" className="flex items-center gap-2">
                 <ArrowDownToLine size={16} />
@@ -288,7 +439,7 @@ const Documents = () => {
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="received" className="mt-0">
+            <TabsContent value="received" className="mt-0 dark:bg-gray-900">
               {loading ? (
                 <div className="py-12 text-center">
                   <div className="animate-spin mx-auto h-12 w-12 border-4 border-doc-deep-blue border-t-transparent rounded-full"></div>
@@ -301,68 +452,139 @@ const Documents = () => {
                   <p className="mt-1 text-doc-medium-gray">{error}</p>
                 </div>
               ) : filteredReceived.length > 0 ? (
-                <div className="overflow-x-auto bg-white dark:bg-[#191919]">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Sender</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedReceived.map((doc) => (
-                        <tr 
-                          key={doc.id}
-                          className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
-                        >
-                          <td className="py-3 px-4">
-                            <div className="flex items-center">
-                              <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
-                              <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                <div className="bg-white dark:bg-[#191919]">
+                  {viewMode === 'list' ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Sender</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedReceived.map((doc) => (
+                            <tr 
+                              key={doc.id}
+                              className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
+                            >
+                              <td className="py-3 px-4">
+                                <div className="flex items-center">
+                                  <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                                  <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray">
+                                {doc.metadata.sender.slice(0, 6)}...{doc.metadata.sender.slice(-4)}
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray">
+                                {formatDate(doc.metadata.timestamp)}
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray">
+                                {formatFileSize(doc.metadata.size)}
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
+                                {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex space-x-2">
+                                  <button 
+                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                    title="View document"
+                                    onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
+                                  >
+                                    <FileSearch size={16} />
+                                  </button>
+                                  <button 
+                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                    title="Download"
+                                    onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
+                                  >
+                                    <ArrowDownToLine size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 p-3">
+                      {paginatedReceived.map((doc) => {
+                        const fileName = doc.metadata.name;
+                        const fileExtension = fileName.split('.').pop() || '';
+                        const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+                        const truncatedName = baseName.length > 30 
+                          ? baseName.substring(0, 30) + '.' + fileExtension
+                          : fileName;
+                        
+                        return (
+                          <div 
+                            key={doc.id}
+                            className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden"
+                          >
+                            <div className="p-2">
+                              <div className="w-full h-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-md flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+                                <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                              </div>
                             </div>
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray">
-                            {doc.metadata.sender.slice(0, 6)}...{doc.metadata.sender.slice(-4)}
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray">
-                            {formatDate(doc.metadata.timestamp)}
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray">
-                            {formatFileSize(doc.metadata.size)}
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
-                            {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex space-x-2">
-                              <button 
-                                className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                title="View document"
-                                onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
-                              >
-                                <FileSearch size={16} />
-                              </button>
-                              <button 
-                                className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                title="Download"
-                                onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
-                              >
-                                <ArrowDownToLine size={16} />
-                              </button>
+                            <div className="px-2 pb-2 relative">
+                              <h3 className="font-medium text-gray-900 dark:text-white text-xs mb-1 truncate" title={doc.metadata.name}>
+                                {truncatedName}
+                              </h3>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
+                                {formatDate(doc.metadata.timestamp)}
+                              </p>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-gray-400 dark:text-gray-500">{formatFileSize(doc.metadata.size)}</span>
+                                <div className="relative">
+                                  <button 
+                                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
+                                    onClick={() => setOpenDropdown(openDropdown === doc.id ? null : doc.id)}
+                                  >
+                                    <MoreVertical size={12} />
+                                  </button>
+                                  {openDropdown === doc.id && (
+                                    <div className="absolute right-0 bottom-full mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-10 min-w-[120px]">
+                                      <button 
+                                        className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
+                                        onClick={() => {
+                                          downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient);
+                                          setOpenDropdown(null);
+                                        }}
+                                      >
+                                        <FileSearch size={12} />
+                                        View
+                                      </button>
+                                      <button 
+                                        className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
+                                        onClick={() => {
+                                          downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient);
+                                          setOpenDropdown(null);
+                                        }}
+                                      >
+                                        <ArrowDownToLine size={12} />
+                                        Download
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <Pagination page={receivedPage} setPage={setReceivedPage} total={sortedReceived.length} />
                 </div>
               ) : (
-                <div className="py-12 text-center">
+                <div className="py-12 text-center bg-white dark:bg-gray-900">
                   <Folder className="mx-auto h-12 w-12 text-doc-medium-gray opacity-50" />
                   <h3 className="mt-4 text-lg font-medium">No documents found</h3>
                   <p className="mt-1 text-doc-medium-gray">
@@ -372,7 +594,7 @@ const Documents = () => {
               )}
             </TabsContent>
             
-            <TabsContent value="sent" className="mt-0">
+            <TabsContent value="sent" className="mt-0 dark:bg-gray-900">
               {loading ? (
                 <div className="py-12 text-center">
                   <div className="animate-spin mx-auto h-12 w-12 border-4 border-doc-deep-blue border-t-transparent rounded-full"></div>
@@ -385,65 +607,136 @@ const Documents = () => {
                   <p className="mt-1 text-doc-medium-gray">{error}</p>
                 </div>
               ) : filteredSent.length > 0 ? (
-                <div className="overflow-x-auto bg-white dark:bg-[#191919]">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Recipient</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
-                        <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedSent.map((doc) => (
-                        <tr 
-                          key={doc.id}
-                          className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
-                        >
-                          <td className="py-3 px-4">
-                            <div className="flex items-center">
-                              <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
-                              <span className="ml-3 font-medium">{doc.metadata.name}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray">
-                            {doc.metadata.recipient.slice(0, 6)}...{doc.metadata.recipient.slice(-4)}
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray">
-                            {formatDate(doc.metadata.timestamp)}
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray">
-                            {formatFileSize(doc.metadata.size)}
-                          </td>
-                          <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
-                            {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
-                            <div className="flex gap-2">
-                              <button 
-                                className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                title="Download"
-                                onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
-                              >
-                                <ArrowDownToLine size={16} />
-                              </button>
-                              <a 
-                                href={`https://viewblock.io/arweave/tx/${doc.id}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                              >
-                                View Tx
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="bg-white dark:bg-[#191919]">
+                  {viewMode === 'list' ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Recipient</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
+                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedSent.map((doc) => (
+                            <tr 
+                              key={doc.id}
+                              className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
+                            >
+                              <td className="py-3 px-4">
+                                <div className="flex items-center">
+                                  <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                                  <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray">
+                                {doc.metadata.recipient.slice(0, 6)}...{doc.metadata.recipient.slice(-4)}
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray">
+                                {formatDate(doc.metadata.timestamp)}
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray">
+                                {formatFileSize(doc.metadata.size)}
+                              </td>
+                              <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
+                                {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
+                                <div className="flex gap-2">
+                                  <button 
+                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                    title="Download"
+                                    onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
+                                  >
+                                    <ArrowDownToLine size={16} />
+                                  </button>
+                                  <a 
+                                    href={`https://viewblock.io/arweave/tx/${doc.id}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                  >
+                                    View Tx
+                                  </a>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 p-3">
+                       {paginatedSent.map((doc) => {
+                         const fileName = doc.metadata.name;
+                         const fileExtension = fileName.split('.').pop() || '';
+                         const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+                         const truncatedName = baseName.length > 30 
+                           ? baseName.substring(0, 30) + '.' + fileExtension
+                           : fileName;
+                         
+                         return (
+                           <div 
+                             key={doc.id}
+                             className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden"
+                           >
+                             <div className="p-2">
+                               <div className="w-full h-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-md flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+                                 <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                               </div>
+                             </div>
+                             <div className="px-2 pb-2 relative">
+                               <h3 className="font-medium text-gray-900 dark:text-white text-xs mb-1 truncate" title={doc.metadata.name}>
+                                 {truncatedName}
+                               </h3>
+                               <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
+                                 {formatDate(doc.metadata.timestamp)}
+                               </p>
+                               <div className="flex items-center justify-between mb-1">
+                                 <span className="text-xs text-gray-400 dark:text-gray-500">{formatFileSize(doc.metadata.size)}</span>
+                                 <div className="relative">
+                                   <button 
+                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
+                                     onClick={() => setOpenDropdown(openDropdown === doc.id ? null : doc.id)}
+                                   >
+                                     <MoreVertical size={12} />
+                                   </button>
+                                   {openDropdown === doc.id && (
+                                     <div className="absolute right-0 bottom-full mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-10 min-w-[120px]">
+                                       <button 
+                                         className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
+                                         onClick={() => {
+                                           downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient);
+                                           setOpenDropdown(null);
+                                         }}
+                                       >
+                                         <ArrowDownToLine size={12} />
+                                         Download
+                                       </button>
+                                       <a 
+                                         href={`https://viewblock.io/arweave/tx/${doc.id}`} 
+                                         target="_blank" 
+                                         rel="noopener noreferrer"
+                                         className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
+                                         onClick={() => setOpenDropdown(null)}
+                                       >
+                                         <ExternalLink size={12} />
+                                         View Tx
+                                       </a>
+                                     </div>
+                                   )}
+                                 </div>
+                               </div>
+                             </div>
+                           </div>
+                         );
+                       })}
+                    </div>
+                  )}
                   <Pagination page={sentPage} setPage={setSentPage} total={sortedSent.length} />
                 </div>
               ) : (

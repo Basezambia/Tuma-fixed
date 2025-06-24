@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -6,8 +6,8 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
-    port: 3000,
+    host: "0.0.0.0",
+    port: 3003,
     fs: {
       // Allow serving files from one level up to the project root
       allow: ['..'],
@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   preview: {
-    port: 3000,
+    port: 3003,
   },
   build: {
     outDir: 'dist',
