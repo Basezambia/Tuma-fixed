@@ -115,9 +115,10 @@ class ArweaveService {
    * @param file The encrypted file data (Uint8Array)
    * @param metadata File metadata
    * @param onProgress Optional callback for upload progress (0-100)
+   * @param customTags Optional custom tags to add to the transaction
    * @returns The transaction ID
    */
-  async uploadFileToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
+  async uploadFileToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void, customTags?: { name: string; value: string }[]): Promise<string> {
     // Try to load the wallet if we don't have it
     if (!this.ownerWallet) {
       await this.loadOwnerWallet();
@@ -125,10 +126,10 @@ class ArweaveService {
     
     // If we have a wallet, use direct upload method
     if (this.ownerWallet) {
-      return this.directUploadToArweave(file, metadata, onProgress);
+      return this.directUploadToArweave(file, metadata, onProgress, customTags);
     } else {
       // Otherwise use the API endpoint
-      return this.apiUploadToArweave(file, metadata, onProgress);
+      return this.apiUploadToArweave(file, metadata, onProgress, customTags);
     }
   }
   
@@ -136,7 +137,7 @@ class ArweaveService {
    * Upload a file to Arweave directly using the app owner's wallet
    * @private
    */
-  private async directUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
+  private async directUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void, customTags?: { name: string; value: string }[]): Promise<string> {
     if (!this.ownerWallet) {
       throw new Error('Arweave wallet not loaded');
     }
@@ -166,6 +167,13 @@ class ArweaveService {
       if (metadata.iv) transaction.addTag('IV', metadata.iv);
       if (metadata.sha256) transaction.addTag('sha256', metadata.sha256);
       if (metadata.documentId) transaction.addTag('Document-Id', metadata.documentId);
+      
+      // Add custom tags if provided
+      if (customTags && Array.isArray(customTags)) {
+        customTags.forEach(tag => {
+          transaction.addTag(tag.name, tag.value);
+        });
+      }
   
       await arweave.transactions.sign(transaction, this.ownerWallet!);
   
@@ -220,7 +228,7 @@ class ArweaveService {
    * Upload a file to Arweave via the API endpoint
    * @private
    */
-  private async apiUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void): Promise<string> {
+  private async apiUploadToArweave(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void, customTags?: { name: string; value: string }[]): Promise<string> {
     try {
       if (onProgress) onProgress(10);
       
@@ -254,6 +262,13 @@ class ArweaveService {
       if (metadata.iv) payload.metadata['IV'] = metadata.iv;
       if (metadata.sha256) payload.metadata['sha256'] = metadata.sha256;
       if (metadata.documentId) payload.metadata['Document-Id'] = metadata.documentId;
+      
+      // Add custom tags if provided
+      if (customTags && Array.isArray(customTags)) {
+        customTags.forEach(tag => {
+          payload.metadata[tag.name] = tag.value;
+        });
+      }
       
       // Make API request to our serverless function
       const response = await fetch('/api/upload', {
@@ -495,12 +510,14 @@ class ArweaveService {
       const recipientIdentifiers = await this.getAllRecipientIdentifiers(address);
       // Searching for files with recipient identifiers
       
-      // Build dynamic query for up to 10 recipients, checking all identifiers
-      const recipientQueries = Array.from({ length: 10 }, (_, i) => `
+      // In getReceivedFiles, also search for Recipient-Name-X tags
+      const recipientQueries = Array.from({ length: 10 }, (_, i) => {
+        const identifiersList = recipientIdentifiers.map(id => `"${id}"`).join(', ');
+        return `
         transactions${i}: transactions(
           tags: [
             { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-            { name: "Recipient-${i}", values: [${recipientIdentifiers.map(id => `"${id}"`).join(', ')}] }
+            { name: "Recipient-${i}", values: [${identifiersList}] }
           ]
           first: 100
         ) {
@@ -514,8 +531,24 @@ class ArweaveService {
             }
           }
         }
-      `).join('');
-      
+        transactionsName${i}: transactions(
+          tags: [
+            { name: "App-Name", values: ["TUMA-Document-Exchange"] },
+            { name: "Recipient-Name-${i}", values: [${identifiersList}] }
+          ]
+          first: 100
+        ) {
+          edges {
+            node {
+              id
+              tags {
+                name
+                value
+              }
+            }
+          }
+        }`;
+      }).join('');
       const query = {
         query: `{${recipientQueries}}`
       };
@@ -533,6 +566,9 @@ class ArweaveService {
       for (let i = 0; i < 10; i++) {
         if (json.data[`transactions${i}`]) {
           allEdges.push(...json.data[`transactions${i}`].edges);
+        }
+        if (json.data[`transactionsName${i}`]) {
+          allEdges.push(...json.data[`transactionsName${i}`].edges);
         }
       }
       

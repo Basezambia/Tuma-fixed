@@ -27,8 +27,8 @@ const Send = () => {
   // ...existing state declarations...
   const [uploadTimeoutId, setUploadTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [recipients, setRecipients] = useState<{name: string; address: string}[]>([]);
-  const [currentRecipient, setCurrentRecipient] = useState<{name: string; address: string}>({name: "", address: ""});
+  const [recipients, setRecipients] = useState<{name: string; address: string; originalInput?: string}[]>([]);
+  const [currentRecipient, setCurrentRecipient] = useState<{name: string; address: string; originalInput?: string}>({name: "", address: ""});
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [processStep, setProcessStep] = useState<'idle' | 'encrypting' | 'uploading' | 'pending' | 'success'>('idle');
@@ -71,15 +71,15 @@ const Send = () => {
     // Check if the input looks like an ENS/Base name
     if (value.includes('.eth') || value.includes('.base.eth')) {
       // For ENS/Base names, don't set the address until we resolve it
-      setCurrentRecipient({...currentRecipient, address: value}); // Show the name while resolving
+      setCurrentRecipient({...currentRecipient, address: value, originalInput: value}); // Show the name while resolving
       const resolvedAddress = await resolveNameToAddress(value);
       if (resolvedAddress) {
-        setCurrentRecipient({...currentRecipient, address: resolvedAddress});
+        setCurrentRecipient({...currentRecipient, address: resolvedAddress, originalInput: value});
         toast.success(`Resolved ${value} to ${resolvedAddress.slice(0, 6)}...${resolvedAddress.slice(-4)}`);
       } else {
         toast.error(`Could not resolve ${value}. Please check the name or enter a direct address.`);
         // Keep the original name in case user wants to try again
-        setCurrentRecipient({...currentRecipient, address: value});
+        setCurrentRecipient({...currentRecipient, address: value, originalInput: value});
       }
     } else {
       // For regular addresses, set immediately
@@ -583,7 +583,7 @@ const Send = () => {
       setFiles([]);
       setMessage("");
       setRecipients([]);
-      setCurrentRecipient({ name: "", address: "" });
+      setCurrentRecipient({ name: "", address: "", originalInput: "" });
       
       setShowPaymentDialog(false);
       setUploadProgress(0);
@@ -703,11 +703,34 @@ const Send = () => {
             documentId: fileDocId
           };
           
+          // Create Arweave transaction tags
+          const tags = [
+            { name: 'App-Name', value: 'TUMA-Document-Exchange' },
+            { name: 'Content-Type', value: 'application/octet-stream' },
+            { name: 'Document-ID', value: fileDocId },
+            { name: 'Sender', value: senderAddress?.toLowerCase() || '' },
+            { name: 'Message', value: message || '' },
+            { name: 'SHA256', value: sha256 },
+            { name: 'Charge-ID', value: documentId },
+            { name: 'Timestamp', value: Date.now().toString() },
+          ];
+          
+          // Add recipient tags - store BOTH original input AND resolved address
+          validRecipients.forEach((recipient, index) => {
+            // Store the resolved address
+            tags.push({ name: `Recipient-${index}`, value: recipient.address.toLowerCase() });
+            
+            // If the original input was an ENS/Base name, also store it
+            if (recipient.originalInput && (recipient.originalInput.includes('.eth') || recipient.originalInput.includes('.base.eth'))) {
+              tags.push({ name: `Recipient-Name-${index}`, value: recipient.originalInput.toLowerCase() });
+            }
+          });
+          
           // Update process step and show uploading notification
           setProcessStep('uploading');
           toast.info('Uploading to Arweave...');
           
-          // Upload to Arweave with complete metadata
+          // Upload to Arweave with complete metadata and tags
           const txId = await arweaveService.uploadFileToArweave(
             payloadBytes,
             completeMetadata, // Use completeMetadata instead of publicMetadata
@@ -715,7 +738,8 @@ const Send = () => {
               const fileProgress = progress / totalFiles;
               const baseProgress = (completedUploads / totalFiles) * 100;
               setUploadProgress(baseProgress + fileProgress);
-            }
+            },
+            tags // Pass the tags to the upload function
           );
           
           if (!txId) {
@@ -837,15 +861,15 @@ const Send = () => {
     );
   };
   // State for recent recipients
-  const [recentRecipients, setRecentRecipients] = useState<{ name: string; address: string; lastSent?: number }[]>([]);
+  const [recentRecipients, setRecentRecipients] = useState<{ name: string; address: string; lastSent?: number; originalInput?: string }[]>([]);
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
   const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
 
   // --- Recent Recipients: Local Storage Logic ---
   const RECENT_RECIPIENTS_KEY = 'recentRecipients';
 
-  function saveRecentRecipient(recipient: { name: string; address: string }) {
-    let existing: { name: string; address: string; lastSent?: number }[] = [];
+  function saveRecentRecipient(recipient: { name: string; address: string; originalInput?: string }) {
+    let existing: { name: string; address: string; lastSent?: number; originalInput?: string }[] = [];
     try {
       const raw = localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]';
       existing = JSON.parse(raw);
@@ -859,7 +883,7 @@ const Send = () => {
     localStorage.setItem(RECENT_RECIPIENTS_KEY, JSON.stringify(updated));
   }
 
-  function loadRecentRecipients(): { name: string; address: string; lastSent?: number }[] {
+  function loadRecentRecipients(): { name: string; address: string; lastSent?: number; originalInput?: string }[] {
     return JSON.parse(localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]');
   }
 
@@ -887,7 +911,7 @@ const Send = () => {
     arweaveService.getSentFiles(senderAddress)
       .then(files => {
         // Extract unique recipients from sent files
-        const recipientsFromSentFiles = files.reduce((acc: { name: string; address: string; lastSent?: number }[], file) => {
+        const recipientsFromSentFiles = files.reduce((acc: { name: string; address: string; lastSent?: number; originalInput?: string }[], file) => {
           const recipientAddress = file.metadata.recipient?.toLowerCase();
           if (!recipientAddress) return acc;
           
@@ -1115,10 +1139,11 @@ const Send = () => {
                                 className="inline-flex items-center bg-white dark:bg-gray-700 rounded-full py-1 pl-1 pr-2 text-sm transition-all duration-200 hover:shadow-md group whitespace-nowrap cursor-pointer"
                                 onClick={() => {
                                   // Move recipient to edit form
-                                  setCurrentRecipient({
-                                    name: recipient.name,
-                                    address: recipient.address
-                                  });
+                          setCurrentRecipient({
+                            name: recipient.name,
+                            address: recipient.address,
+                            originalInput: recipient.originalInput
+                          });
                                   // Remove from list
                                   setRecipients(recipients.filter((_, i) => i !== index));
                                   setShowRecipientDialog(true);
@@ -1149,7 +1174,7 @@ const Send = () => {
                             <button
                               type="button"
                               onClick={() => {
-                                setCurrentRecipient({name: "", address: ""});
+                                setCurrentRecipient({name: "", address: "", originalInput: ""});
                                 setShowRecipientDialog(true);
                               }}
                               className="inline-flex items-center justify-center w-8 h-8 bg-gray-600 hover:bg-gray-700 rounded-full transition-all duration-200 hover:shadow-md"
@@ -1187,7 +1212,7 @@ const Send = () => {
                                 if (e.key === 'Enter' && currentRecipient.name && currentRecipient.address) {
                                   e.preventDefault();
                                   setRecipients([...recipients, currentRecipient]);
-                                  setCurrentRecipient({name: "", address: ""});
+                                  setCurrentRecipient({name: "", address: "", originalInput: ""});
                                   saveRecentRecipient(currentRecipient);
                                 }
                               }}
@@ -1220,7 +1245,7 @@ const Send = () => {
                                 if (e.key === 'Enter' && currentRecipient.name && currentRecipient.address) {
                                   e.preventDefault();
                                   setRecipients([...recipients, currentRecipient]);
-                                  setCurrentRecipient({name: "", address: ""});
+                                  setCurrentRecipient({name: "", address: "", originalInput: ""});
                                   saveRecentRecipient(currentRecipient);
                                 }
                               }}
@@ -1294,7 +1319,8 @@ const Send = () => {
                           if (!isAlreadyAdded && recipients.length < 5) {
                             setRecipients([...recipients, {
                               name: recipient.name,
-                              address: recipient.address
+                              address: recipient.address,
+                              originalInput: recipient.originalInput
                             }]);
                           }
 
@@ -1688,7 +1714,7 @@ const Send = () => {
                     return;
                   }
                   setRecipients([...recipients, currentRecipient]);
-                  setCurrentRecipient({name: "", address: ""});
+                  setCurrentRecipient({name: "", address: "", originalInput: ""});
                   saveRecentRecipient(currentRecipient);
                   setShowRecipientDialog(false);
                 }

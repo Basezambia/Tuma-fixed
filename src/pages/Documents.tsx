@@ -514,19 +514,19 @@ const Documents = () => {
                       </table>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 p-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-3">
                       {paginatedReceived.map((doc) => {
                         const fileName = doc.metadata.name;
                         const fileExtension = fileName.split('.').pop() || '';
                         const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-                        const truncatedName = baseName.length > 30 
-                          ? baseName.substring(0, 30) + '.' + fileExtension
+                        const truncatedName = baseName.length > 20 
+                          ? baseName.substring(0, 20) + '.' + fileExtension
                           : fileName;
                         
                         return (
                           <div 
                             key={doc.id}
-                            className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden"
+                            className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden aspect-[3/4]"
                           >
                             <div className="p-2">
                               <div className="w-full h-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-md flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
@@ -670,19 +670,19 @@ const Documents = () => {
                       </table>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 p-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-3">
                        {paginatedSent.map((doc) => {
                          const fileName = doc.metadata.name;
                          const fileExtension = fileName.split('.').pop() || '';
                          const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-                         const truncatedName = baseName.length > 30 
-                           ? baseName.substring(0, 30) + '.' + fileExtension
+                         const truncatedName = baseName.length > 20 
+                           ? baseName.substring(0, 20) + '.' + fileExtension
                            : fileName;
                          
                          return (
                            <div 
                              key={doc.id}
-                             className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden"
+                             className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden aspect-[3/4]"
                            >
                              <div className="p-2">
                                <div className="w-full h-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-md flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
