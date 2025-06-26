@@ -1,14 +1,28 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { ArrowRight, CheckCircle, Shield, Wallet } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ArrowRight, CheckCircle, Shield, Wallet, Lock, Zap, Users, DollarSign, Star, Globe, CheckIcon, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Wallet as OnchainWallet } from '@coinbase/onchainkit/wallet';
+import { 
+  Wallet as OnchainWallet, 
+  ConnectWallet, 
+  WalletDropdown, 
+  WalletDropdownLink, 
+  WalletDropdownFundLink, 
+  WalletDropdownDisconnect 
+} from '@coinbase/onchainkit/wallet';
+import { useAccount } from 'wagmi';
 import Header from "@/components/Header";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const { address, isConnected } = useAccount();
   const [isHovering, setIsHovering] = useState(false);
   const [arweavePricing, setArweavePricing] = useState(null);
   const [isLoadingPricing, setIsLoadingPricing] = useState(true);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  
+  // Calculate pricing variables
+  const arPrice = arweavePricing ? (0.01 / (arweavePricing.pricePerARInUSD || 1)).toFixed(4) : '0.01';
+  const usdPrice = '0.01';
 
   // Fetch Arweave pricing data
   const fetchArweavePricing = useCallback(async () => {
@@ -30,7 +44,7 @@ const Landing = () => {
     return () => clearInterval(interval);
   }, [fetchArweavePricing]);
 
-  // Calculate dynamic price with 35% profit margin
+  // Calculate dynamic price with 20% profit margin
   const calculateDynamicPrice = useCallback((sizeInMB) => {
     if (!arweavePricing || !arweavePricing.pricePerMBInUSD) {
       return '$0.01 USDC'; // Fallback minimum
@@ -39,7 +53,7 @@ const Landing = () => {
     const basePrice = sizeInMB * arweavePricing.pricePerMBInUSD;
     const networkFactor = arweavePricing.networkFactor || 1;
     const adjustedPrice = basePrice * networkFactor;
-    const finalPrice = adjustedPrice * 1.35; // 35% profit margin
+    const finalPrice = adjustedPrice * 1.20; // 20% profit margin
     const minPrice = 0.01; // Minimum $0.01
 
     return `$${Math.max(finalPrice, minPrice).toFixed(2)} USDC`;
@@ -53,254 +67,384 @@ const Landing = () => {
     return calculateDynamicPrice(sizeInMB);
   }, [calculateDynamicPrice, isLoadingPricing]);
 
-  const features = [
+  const keyFeatures = [
     {
-      icon: <Shield className="h-6 w-6 text-doc-deep-blue dark:text-blue-400" />,
-      title: "Secure Document Sharing",
-      description: "End-to-end encryption ensures your files remain private and secure."
+      icon: <Lock className="h-8 w-8 text-green-600" />,
+      title: "🔒 True Data Ownership",
+      description: "Your data belongs to you, not corporations",
+      subtext: "Cryptographic security ensures only you control access"
     },
     {
-      icon: <Wallet className="h-6 w-6 text-doc-deep-blue dark:text-blue-400" />,
-      title: "Blockchain-Powered",
-      description: "Built on Base network with Arweave storage for permanent, decentralized file storage."
+      icon: <Zap className="h-8 w-8 text-blue-600" />,
+      title: "⚡ Instant Wallet Sharing",
+      description: "Share files instantly with just a wallet address",
+      subtext: "No accounts, no emails, no friction"
     },
     {
-      icon: <CheckCircle className="h-6 w-6 text-doc-deep-blue dark:text-blue-400" />,
-      title: "Simple Pricing",
-      description: "Pay once for permanent storage. No subscriptions or hidden fees."
+      icon: <Shield className="h-8 w-8 text-purple-600" />,
+      title: "🛡️ AI Shield Protection",
+      description: "Protect your data from unauthorized AI training",
+      subtext: "Built-in privacy protection against data harvesting"
+    },
+    {
+      icon: <DollarSign className="h-8 w-8 text-green-600" />,
+      title: "💰 One-Time Payment Model",
+      description: "Pay once, store forever",
+      subtext: "No monthly fees or surprise charges"
+    }
+  ];
+
+  const comparisons = [
+    {
+      feature: "Payment Model",
+      tuma: "One-time payment",
+      traditional: "Monthly fees",
+      others: "Complex setup"
+    },
+    {
+      feature: "Data Control",
+      tuma: "True ownership",
+      traditional: "Platform controls",
+      others: "Temporary storage"
+    },
+    {
+      feature: "Storage Duration",
+      tuma: "Permanent storage",
+      traditional: "Can be deleted",
+      others: "No AI protection"
     }
   ];
 
   const pricingTiers = [
-    { size: "100KB to 20MB", price: calculateTierPrice(10) },
-    { size: "20MB to 50MB", price: calculateTierPrice(35) },
-    { size: "50MB to 100MB", price: calculateTierPrice(75) },
-    { size: ">100MB", price: "Real-time calculated" }
+    { size: "100KB", price: calculateTierPrice(10) },
+    { size: "20MB", price: calculateTierPrice(35) },
+    { size: "50MB", price: calculateTierPrice(75) },
+    { size: "100MB+", price: "Real-time calculated" }
+  ];
+
+  // Scroll animation hook
+  const useScrollAnimation = () => {
+    const [visibleElements, setVisibleElements] = useState(new Set());
+    const observerRef = useRef<IntersectionObserver | null>(null);
+
+    useEffect(() => {
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              setVisibleElements(prev => new Set([...prev, entry.target.id]));
+            }
+          });
+        },
+        { threshold: 0.1, rootMargin: '50px' }
+      );
+
+      const elements = document.querySelectorAll('[data-scroll-animation]');
+      elements.forEach(el => observerRef.current?.observe(el));
+
+      return () => observerRef.current?.disconnect();
+    }, []);
+
+    return visibleElements;
+  };
+
+  const visibleElements = useScrollAnimation();
+
+  const scrollStories = [
+    {
+      id: 'story-1',
+      title: 'The Problem with Traditional Storage',
+      content: 'Every year, millions of files are lost due to server failures, subscription cancellations, and platform shutdowns.',
+      icon: <Shield className="h-12 w-12 text-red-500" />,
+      stats: '73% of data is lost within 5 years'
+    },
+    {
+      id: 'story-2', 
+      title: 'The Tuma Solution',
+      content: 'Permanent, decentralized storage that exists forever. Pay once, own forever.',
+      icon: <Sparkles className="h-12 w-12 text-green-500" />,
+      stats: '100% permanent guarantee'
+    },
+    {
+      id: 'story-3',
+      title: 'Your Data, Your Control',
+      content: 'Complete privacy with instant sharing capabilities. No middlemen, no surveillance.',
+      icon: <Lock className="h-12 w-12 text-blue-500" />,
+      stats: 'Zero-knowledge architecture'
+    }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 dark:from-gray-900 dark:to-gray-800">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        {/* Particle Background */}
-        <div className="particles">
-          {Array.from({ length: 50 }).map((_, index) => (
-            <div 
-              key={index}
-              className="particle animate-float"
-              style={{
-                width: `${Math.random() * 5 + 2}px`,
-                height: `${Math.random() * 5 + 2}px`,
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                opacity: Math.random() * 0.5 + 0.3,
-                animationDuration: `${Math.random() * 10 + 5}s`,
-                animationDelay: `${Math.random() * 5}s`
-              }}
-            />
-          ))}
-        </div>
-        
-        {/* Background Image with Overlay */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-blue-700/70 mix-blend-multiply z-10 animate-gradient-shift"></div>
-          <div 
-            className="absolute inset-0 bg-cover bg-center z-0"
-            style={{
-              backgroundImage: "url('https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2574&q=80')",
-              backgroundSize: 'cover',
-              backgroundPosition: 'center'
-            }}
-          ></div>
-        </div>
-        
+    <div 
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: "url('/gray background.png')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      {/* Glassmorphism Overlay */}
+      <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+      
+      {/* Content Container */}
+      <div className="relative z-10">
         {/* Header */}
         <Header />
         
-        {/* Hero Content */}
-        <div className="relative z-10 mx-auto max-w-7xl px-6 py-32 sm:py-36 lg:py-44 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl drop-shadow-md animate-float">
-              TUMA
-            </h1>
-            <div className="mt-6 bg-white/10 backdrop-blur-sm p-6 rounded-xl inline-block max-w-2xl animate-fade-in-up">
-              <p className="text-lg leading-8 text-white/90">
-                Share files securely with blockchain-powered encryption and permanent storage. 
-                Connect your wallet to start sending and receiving files.
-              </p>
+        {/* Hero Section */}
+        <div className="relative">
+          {/* Hero Background Image */}
+          <div className="w-full h-screen">
+            <img 
+              src="/Gray Green Bold Pitch Deck Presentation (Website).png"
+              alt="Tuma - Store Forever, Pay Once"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        </div>
+
+        {/* Scrollytelling Section */}
+        <div className="py-24 relative overflow-hidden">
+          <div className="max-w-6xl mx-auto px-4">
+            {scrollStories.map((story, index) => (
+              <div 
+                key={story.id}
+                id={story.id}
+                data-scroll-animation
+                className={`min-h-screen flex items-center justify-center mb-16 ${
+                  visibleElements.has(story.id) ? 'scroll-reveal revealed' : 'scroll-reveal'
+                }`}
+              >
+                <div className="text-center max-w-4xl">
+                  <div className={`mb-8 flex justify-center ${
+                    visibleElements.has(story.id) ? 'scroll-scale visible stagger-1' : 'scroll-scale'
+                  }`}>
+                    {story.icon}
+                  </div>
+                  <h2 className={`text-5xl md:text-6xl font-bold text-gray-900 mb-6 ${
+                    visibleElements.has(story.id) ? 'scroll-slide-left visible stagger-2' : 'scroll-slide-left'
+                  }`}>
+                    {story.title}
+                  </h2>
+                  <p className={`text-xl md:text-2xl text-gray-700 mb-8 leading-relaxed ${
+                    visibleElements.has(story.id) ? 'scroll-slide-right visible stagger-3' : 'scroll-slide-right'
+                  }`}>
+                    {story.content}
+                  </p>
+                  <div className={`bg-white/30 backdrop-blur-md rounded-2xl p-6 inline-block border border-white/40 ${
+                    visibleElements.has(story.id) ? 'scroll-fade-in visible stagger-4' : 'scroll-fade-in'
+                  }`}>
+                    <div className="text-3xl font-bold text-gray-900 mb-2">{story.stats}</div>
+                    <div className="text-gray-600">Industry benchmark</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Hero Content Section */}
+        <div className="py-12 bg-white/10 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto text-center px-4">
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 border border-white/20 shadow-2xl">
+              <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-10">
+                Store Forever, <span className="text-green-800">Pay Once</span>
+              </h1>
+              <div className="flex flex-col sm:flex-row gap-6 justify-center">
+                {isConnected ? (
+                  <button 
+                    onClick={() => navigate('/send')}
+                    className="bg-green-700 hover:bg-green-800 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl border border-green-600/50"
+                  >
+                    Start Storing Forever
+                  </button>
+                ) : (
+                  <div className="relative">
+                    <OnchainWallet>
+                      <ConnectWallet className="bg-green-700 hover:bg-green-800 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl border border-green-600/50">
+                        <span>Start Storing Forever</span>
+                      </ConnectWallet>
+                    </OnchainWallet>
+                  </div>
+                )}
+                <button 
+                  onClick={() => {
+                    const element = document.getElementById('why-choose-tuma');
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="bg-white/20 backdrop-blur-md hover:bg-white/30 text-gray-900 px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 border border-white/40 shadow-xl"
+                >
+                  Learn More
+                </button>
+              </div>
             </div>
           </div>
         </div>
-        
-        {/* Divider: simple premium line instead of wave */}
-        <div className="absolute bottom-0 left-0 right-0 z-10 translate-y-1">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            viewBox="0 0 1440 6" 
-            preserveAspectRatio="none" 
-            className="w-full h-3 -mb-1"
-            style={{ display: 'block' }}
-          >
-            <defs>
-              <linearGradient id="dividerLineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#fffbe6" />
-                <stop offset="100%" stopColor="#f6e7d7" />
-              </linearGradient>
-            </defs>
-            <line x1="0" y1="3" x2="1440" y2="3" stroke="url(#dividerLineGradient)" strokeWidth="4" strokeLinecap="round" />
-          </svg>
-        </div>
-      </div>
 
-      {/* Features Section - Adjusted to reduce spacing */}
-      <div className="pt-12 pb-16 sm:pt-16 sm:pb-24 relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 z-0 opacity-20 dark:opacity-30">
-          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="premiumGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#0f2027" />
-                <stop offset="40%" stopColor="#2c5364" />
-                <stop offset="100%" stopColor="#FFD700" stopOpacity="0.10" />
-              </linearGradient>
-              <radialGradient id="goldGlow" cx="80%" cy="20%" r="70%">
-                <stop offset="0%" stopColor="#FFD700" stopOpacity="0.20" />
-                <stop offset="100%" stopColor="#2c5364" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#premiumGradient)" />
-            <circle cx="80%" cy="20%" r="180" fill="url(#goldGlow)" />
-          </svg>
-        </div>
-        <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-doc-deep-blue dark:text-blue-400">Secure by Design</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-              Everything you need for secure document sharing
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-              TUMA provides a seamless experience for sending and receiving files with blockchain security and permanent storage.
-            </p>
-          </div>
-          <div className="mx-auto mt-12 max-w-2xl sm:mt-16 lg:mt-18 lg:max-w-4xl">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-8 lg:max-w-none lg:grid-cols-3 lg:gap-y-12">
-              {features.map((feature, index) => (
-                <div 
-                  key={index} 
-                  className={`relative pl-16 hover-float transition-all duration-300 animate-fade-in-up delay-${index * 100}`}
-                >
-                  <div className="hover-glow rounded-xl p-4 transition-all duration-300">
-                    <dt className="text-base font-semibold leading-7 text-gray-900 dark:text-white">
-                      <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900 animate-pulse-subtle">
-                        {feature.icon}
-                      </div>
-                      {feature.title}
-                    </dt>
-                    <dd className="mt-2 text-base leading-7 text-gray-600 dark:text-gray-300">{feature.description}</dd>
-                  </div>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div>
-
-      {/* Pricing Section - Adjusted spacing */}
-      <div className="py-16 sm:py-24 relative overflow-hidden">
-        {/* Premium Background Pattern */}
-        <div className="absolute inset-0 z-0 opacity-20 dark:opacity-30">
-          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="premiumGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#0f2027" />
-                <stop offset="40%" stopColor="#2c5364" />
-                <stop offset="100%" stopColor="#FFD700" stopOpacity="0.10" />
-              </linearGradient>
-              <radialGradient id="goldGlow2" cx="80%" cy="20%" r="70%">
-                <stop offset="0%" stopColor="#FFD700" stopOpacity="0.20" />
-                <stop offset="100%" stopColor="#2c5364" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#premiumGradient2)" />
-            <circle cx="80%" cy="20%" r="180" fill="url(#goldGlow2)" />
-          </svg>
-        </div>
-        <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-doc-deep-blue dark:text-blue-400">Pricing</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-              Simple, transparent pricing
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-              Pay once for permanent storage. No subscriptions or hidden fees.
-            </p>
-          </div>
-          <div className="mx-auto mt-12 max-w-2xl sm:mt-16 lg:mt-18 lg:max-w-4xl">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Enhanced Pricing Cards Section */}
+        <div className="py-24 relative">
+          <div className="max-w-7xl mx-auto px-4">
+            <div 
+              id="pricing-header"
+              data-scroll-animation
+              className={`text-center mb-16 ${
+                visibleElements.has('pricing-header') ? 'scroll-reveal revealed' : 'scroll-reveal'
+              }`}
+            >
+              <h2 className="text-5xl font-bold text-gray-900 mb-4">Revolutionary Pricing</h2>
+              <p className="text-xl text-gray-700">The future of data storage pricing is here</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
               {pricingTiers.map((tier, index) => (
                 <div 
-                  key={index} 
-                  className={`rounded-lg bg-blue-50 dark:bg-blue-900/30 p-6 text-center shadow-sm ring-1 ring-inset ring-blue-200 dark:ring-blue-800 hover-scale hover-glow transition-all duration-300 animate-fade-in-up delay-${index * 100}`}
+                  key={index}
+                  id={`pricing-card-${index}`}
+                  data-scroll-animation
+                  className={`pricing-card bg-white/25 backdrop-blur-md rounded-3xl p-8 border border-white/30 text-center flex flex-col ${
+                    visibleElements.has(`pricing-card-${index}`) ? `scroll-scale visible stagger-${index + 1}` : 'scroll-scale'
+                  }`}
                 >
-                  <h3 className="text-lg font-semibold leading-8 text-gray-900 dark:text-white">{tier.size}</h3>
-                  <p className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-white animate-pulse-subtle">{tier.price}</p>
-                  <p className="mt-6 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                    One-time payment for permanent storage
+                  <div className="text-2xl font-bold text-gray-900 mb-4">{tier.size}</div>
+                  <div className="text-4xl font-bold text-green-600 mb-6">{tier.price}</div>
+                  {tier.size !== "100MB+" ? (
+                    <div className="space-y-3 text-gray-700 flex-grow">
+                      <div className="flex items-center justify-center">
+                        <CheckIcon className="h-5 w-5 text-green-600 mr-2" />
+                        Permanent storage
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <CheckIcon className="h-5 w-5 text-green-600 mr-2" />
+                        Instant sharing
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <CheckIcon className="h-5 w-5 text-green-600 mr-2" />
+                        Zero fees
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-700 mb-6 flex-grow flex items-center justify-center">
+                      <p className="text-lg font-medium">Start storing your data permanently today</p>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => navigate('/send')}
+                    className="mt-auto w-full bg-gray-800 hover:bg-gray-900 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+                  >
+                    Get Started
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Key Features Section */}
+        <div className="py-16">
+          <div className="max-w-7xl mx-auto px-4">
+            {/* Social Proof */}
+            <div className="text-center mb-16">
+              <div className="bg-white/20 backdrop-blur-md rounded-2xl p-6 inline-block border border-white/30">
+                <p className="text-lg font-semibold text-gray-800 mb-2">
+                  <span className="text-green-600">Join 1000+ users</span> storing data permanently
+                </p>
+                <p className="text-gray-700">Trusted by privacy-conscious individuals and businesses</p>
+                <div className="flex justify-center mt-4 space-x-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-5 w-5 text-yellow-500 fill-current" />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Key Features Grid */}
+            <div id="why-choose-tuma" className="text-center mb-12">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">Why Choose Tuma?</h2>
+              <p className="text-xl text-gray-700">Four core benefits that set us apart</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+              {keyFeatures.map((feature, index) => (
+                <div 
+                  key={index}
+                  className="bg-white/25 backdrop-blur-md rounded-2xl p-6 border border-white/30 hover:bg-white/35 transition-all duration-300 transform hover:scale-105"
+                >
+                  <div className="flex justify-center mb-4">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-3 text-center">
+                    {feature.title}
+                  </h3>
+                  <p className="text-gray-800 font-semibold text-center mb-2">
+                    {feature.description}
+                  </p>
+                  <p className="text-gray-600 text-sm text-center">
+                    {feature.subtext}
                   </p>
                 </div>
               ))}
             </div>
-            <div className="mt-8 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Prices updated in real-time based on network costs
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* CTA Section - Adjusted spacing */}
-      <div className="py-16 sm:py-24 relative overflow-hidden">
-        {/* Premium Background Pattern */}
-        <div className="absolute inset-0 z-0 opacity-20 dark:opacity-30">
-          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="premiumGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#0f2027" />
-                <stop offset="40%" stopColor="#2c5364" />
-                <stop offset="100%" stopColor="#FFD700" stopOpacity="0.10" />
-              </linearGradient>
-              <radialGradient id="goldGlow3" cx="80%" cy="20%" r="70%">
-                <stop offset="0%" stopColor="#FFD700" stopOpacity="0.20" />
-                <stop offset="100%" stopColor="#2c5364" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#premiumGradient3)" />
-            <circle cx="80%" cy="20%" r="180" fill="url(#goldGlow3)" />
-          </svg>
-        </div>
-        <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
-          <div className="mx-auto max-w-2xl text-center animate-fade-in-up">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl animate-pulse-subtle">
-              Ready to get started with TUMA?
-            </h2>
-            <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-              Connect your wallet to start sending and receiving files securely.
-            </p>
-            <div className="flex items-center justify-center gap-x-6 bg-transparent dark:bg-transparent px-8 py-4 rounded-full shadow-none z-20 animate-float mt-10 border-none">
-              <OnchainWallet />
-              <button 
-                onClick={() => navigate("/about")}
-                className="text-sm font-semibold leading-6 bg-blue-50 dark:bg-blue-900/30 text-gray-900 dark:text-white px-4 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-all flex items-center hover-glow"
-                onMouseEnter={() => setIsHovering(true)}
-                onMouseLeave={() => setIsHovering(false)}
-              >
-                Learn more <ArrowRight className={`ml-1 h-4 w-4 transition-transform ${isHovering ? 'translate-x-1' : ''}`} />
-              </button>
+            {/* Comparison Table */}
+            <div className="bg-white/20 backdrop-blur-md rounded-3xl p-8 border border-white/30">
+              <h3 className="text-3xl font-bold text-gray-900 text-center mb-8">How We Compare</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-300">
+                      <th className="text-left py-4 px-4 font-semibold text-gray-900">Feature</th>
+                      <th className="text-center py-4 px-4 font-semibold text-green-600">Tuma</th>
+                      <th className="text-center py-4 px-4 font-semibold text-gray-600">Traditional Cloud</th>
+                      <th className="text-center py-4 px-4 font-semibold text-gray-600">Other Decentralized</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisons.map((comparison, index) => (
+                      <tr key={index} className="border-b border-gray-200">
+                        <td className="py-4 px-4 font-medium text-gray-900">{comparison.feature}</td>
+                        <td className="py-4 px-4 text-center">
+                          <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                            {comparison.tuma}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-center text-gray-600">{comparison.traditional}</td>
+                        <td className="py-4 px-4 text-center text-gray-600">{comparison.others}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+        {/* Call to Action Section */}
+        <div className="py-16">
+          <div className="max-w-4xl mx-auto text-center px-4">
+            <div className="bg-white/25 backdrop-blur-md rounded-3xl p-12 border border-white/30 hover:bg-white/35 transition-all duration-300">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                Ready to Own Your Data Forever?
+              </h2>
+              <p className="text-xl text-gray-700 mb-8">
+                <span className="bg-white/40 backdrop-blur-sm px-3 py-2 rounded-lg font-semibold text-gray-800 border border-white/50">Get a free consultation today</span>
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button 
+                  onClick={() => navigate('/about')}
+                  className="bg-white/30 backdrop-blur-md hover:bg-white/40 text-gray-900 px-10 py-4 rounded-xl font-bold text-xl transition-all duration-300 border border-white/50"
+                >
+                  Contact Us
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+
 
       {/* Footer */}
       <footer className="relative bg-gradient-to-b from-f8fafc to-e2e8f0 dark:from-gray-900 dark:to-gray-800 mt-0 overflow-hidden">
@@ -348,6 +492,7 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 };

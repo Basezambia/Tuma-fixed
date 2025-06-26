@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Menu, Moon, Sun, X, Bell, Building2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -289,28 +289,37 @@ const Header = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY === 0) {
+      const currentScrollY = window.scrollY;
+      
+      // Always show header at the top
+      if (currentScrollY === 0) {
         setShowHeader(true);
-      } else {
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up - show header
+        setShowHeader(true);
+      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down and past 100px - hide header
         setShowHeader(false);
       }
-      setLastScrollY(window.scrollY);
+      
+      setLastScrollY(currentScrollY);
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    
+    window.addEventListener("scroll", handleScroll, { passive: true });
+     return () => window.removeEventListener("scroll", handleScroll);
+   }, [lastScrollY]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 px-6 py-4 transition-transform duration-300 ${showHeader ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'} bg-transparent dark:bg-gray-900`}
-    >
-      <div className={`${location.pathname === '/landing' ? 'bg-transparent border-none shadow-none backdrop-blur-none' : 'bg-transparent border-none shadow-none'} dark:bg-gray-900 rounded-xl mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 transition-all duration-300`}>
+    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${
+      showHeader ? 'translate-y-0' : '-translate-y-full'
+    } ${lastScrollY > 10 ? 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm' : 'bg-transparent'}`}>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
         <div className="flex items-center">
-          <NavLink to="/send" className="text-xl font-bold bg-gradient-to-r from-doc-deep-blue to-blue-500 bg-clip-text text-transparent focus:outline-none focus:ring-2 focus:ring-blue-400 rounded transition-colors duration-200">
+          <NavLink to="/send" className="text-2xl font-bold text-gray-900 dark:text-white hover:text-green-600 dark:hover:text-green-400 transition-colors">
             TUMA
           </NavLink>
         </div>
@@ -328,7 +337,7 @@ const Header = () => {
               </button>
             </div>
           ) : (
-            <nav className="hidden md:flex items-center space-x-1">
+            <nav className="hidden md:flex items-center space-x-8">
               {[
                 { name: 'Send', path: '/send' }, 
                 { name: 'Documents', path: '/documents' }, 
@@ -340,19 +349,13 @@ const Header = () => {
                   <NavLink
                     key={link.path}
                     to={link.path}
-                    className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                    className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors"
                   >
-                    {link.name === 'Enterprise' ? (
-                      <span className="flex items-center gap-1">
-                        <Building2 className="h-4 w-4" />
-                        {link.name}
-                      </span>
-                    ) : (
-                      link.name
-                    )}
+                    {link.name}
                   </NavLink>
                 ))}
-              <div className="ml-6 z-50">
+              <div className="flex items-center space-x-4">
+                <NotificationBell />
                 <Wallet>
                   <ConnectWallet disconnectedLabel="Log In">
                     <Name />
@@ -372,10 +375,6 @@ const Header = () => {
                   </WalletDropdown>
                 </Wallet>
               </div>
-              <div style={{ marginLeft: '1.5rem' }}>                
-                <NotificationBell />
-              </div>
-              {/* Dark mode toggle is now hidden - removed the entire div */}
             </nav>
           )
         ) : (
@@ -387,8 +386,8 @@ const Header = () => {
 
       {/* Mobile menu, show/hide based on menu state */}
       {isMobile && isMenuOpen && (
-        <div className="backdrop-blur-xl bg-white/40 dark:bg-[#191919] border border-white/20 dark:border-[#232323] shadow-lg md:hidden mt-2 py-4 px-2 rounded-xl animate-scale-in">
-          <nav className="flex flex-col space-y-3">
+        <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 md:hidden">
+          <nav className="flex flex-col py-4 px-4 space-y-2">
             {[
               { name: 'Send', path: '/send' }, 
               { name: 'Documents', path: '/documents' }, 
@@ -400,22 +399,14 @@ const Header = () => {
                 <NavLink
                   key={link.path}
                   to={link.path}
-                  className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+                  className="block py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  {link.name === 'Enterprise' ? (
-                    <span className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      {link.name}
-                    </span>
-                  ) : (
-                    link.name
-                  )}
+                  {link.name}
                 </NavLink>
               ))}
-            <div className="pt-2 flex items-center justify-between">
-              {/* Only render Wallet on mobile, with full dropdown and identity */}
-              {isMobile && isConnected && (
+            {isMobile && isConnected && (
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <Wallet>
                   <ConnectWallet disconnectedLabel="Log In">
                     <Name />
@@ -427,9 +418,6 @@ const Header = () => {
                       <Address />
                       <EthBalance />
                     </Identity>
-                    <WalletDropdownLink icon="info-circle" href="/about">
-                      About
-                    </WalletDropdownLink>
                     <WalletDropdownLink icon="wallet" href="https://keys.coinbase.com">
                       Wallet
                     </WalletDropdownLink>
@@ -437,21 +425,8 @@ const Header = () => {
                     <WalletDropdownDisconnect />
                   </WalletDropdown>
                 </Wallet>
-              )}
-              <div className="relative group">
-                <Toggle 
-                  aria-label="Dark mode coming soon"
-                  className="p-2 rounded-full cursor-not-allowed opacity-70"
-                  pressed={false}
-                  onPressedChange={() => toast.info("Dark mode coming soon!")}
-                >
-                  <Sun size={18} />
-                </Toggle>
-                <div className="absolute top-12 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none">
-                  Coming Soon
-                </div>
               </div>
-            </div>
+            )}
           </nav>
         </div>
       )}

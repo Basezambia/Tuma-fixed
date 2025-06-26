@@ -184,12 +184,33 @@ export async function decryptFileForMultipleRecipients(
 ): Promise<Uint8Array> {
   const userKey = userAddress.toLowerCase();
   
-  if (!recipientKeys[userKey]) {
-    throw new Error('No decryption key found for this user');
+  // Try to find the user's key with flexible matching
+  let userKeyData = recipientKeys[userKey];
+  
+  if (!userKeyData) {
+    // Try original case
+    userKeyData = recipientKeys[userAddress];
+  }
+  
+  if (!userKeyData) {
+    // Try to find any key that matches (case-insensitive)
+    const availableKeys = Object.keys(recipientKeys);
+    const matchingKey = availableKeys.find(key => 
+      key.toLowerCase() === userAddress.toLowerCase()
+    );
+    if (matchingKey) {
+      userKeyData = recipientKeys[matchingKey];
+    }
+  }
+  
+  if (!userKeyData) {
+    console.error('Available recipient keys:', Object.keys(recipientKeys));
+    console.error('Looking for user:', userAddress);
+    throw new Error(`No decryption key found for user ${userAddress}. Available keys: ${Object.keys(recipientKeys).join(', ')}`);
   }
   
   // Decrypt the master key
-  const keyData = base64ToUint8Array(recipientKeys[userKey]);
+  const keyData = base64ToUint8Array(userKeyData);
   const keyIv = keyData.slice(0, 12);
   const encryptedMasterKey = keyData.slice(12);
   

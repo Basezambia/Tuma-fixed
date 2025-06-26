@@ -220,13 +220,33 @@ const Documents = () => {
           // New multi-recipient format
           const userKey = userAddress.toLowerCase();
           
-          if (!payload.metadata[userKey]) {
-            throw new Error('No encrypted metadata found for this user');
+          // Try to find the user's metadata with flexible key matching
+          let userMetadata = payload.metadata[userKey];
+          
+          // If not found, try other variations
+          if (!userMetadata) {
+            // Try original case
+            userMetadata = payload.metadata[userAddress];
+          }
+          
+          if (!userMetadata) {
+            // Try to find any key that matches (case-insensitive)
+            const metadataKeys = Object.keys(payload.metadata);
+            const matchingKey = metadataKeys.find(key => 
+              key.toLowerCase() === userAddress.toLowerCase()
+            );
+            if (matchingKey) {
+              userMetadata = payload.metadata[matchingKey];
+            }
+          }
+          
+          if (!userMetadata) {
+            throw new Error('No encrypted metadata found for this user. You may not have permission to decrypt this file.');
           }
           
           // Decrypt metadata to get recipient keys
           const decryptedMetadata = await decryptMetadata(
-            payload.metadata[userKey],
+            userMetadata,
             sender.toLowerCase(),
             userAddress.toLowerCase(),
             metadata.documentId || docId

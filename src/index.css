@@ -647,6 +647,132 @@
   animation: pulse-red 1.5s ease-in-out infinite;
 }
 
+/* Scrollytelling Animations */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(50px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.scroll-fade-in {
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}
+
+.scroll-fade-in.visible {
+  opacity: 1;
+}
+
+.scroll-slide-left {
+  opacity: 0;
+  transform: translateX(-100px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scroll-slide-left.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.scroll-slide-right {
+  opacity: 0;
+  transform: translateX(100px);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scroll-slide-right.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.scroll-scale {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.scroll-scale.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Parallax effect */
+.parallax-element {
+  will-change: transform;
+}
+
+/* Staggered animations */
+.stagger-1 { transition-delay: 0.1s; }
+.stagger-2 { transition-delay: 0.2s; }
+.stagger-3 { transition-delay: 0.3s; }
+.stagger-4 { transition-delay: 0.4s; }
+
+/* Pricing card hover effects */
+.pricing-card {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.pricing-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom OnchainKit Wallet Button Styling - Green Theme for Homepage */
+[data-testid="ockConnectWallet_Container"] button,
+.ock-wallet-connect-button,
+button[data-testid="ockConnectWallet_Container"] {
+  background: linear-gradient(135deg, #0f766e 0%, #134e4a 100%) !important;
+  border: 1px solid #0f766e !important;
+  color: white !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.2) !important;
+}
+
+[data-testid="ockConnectWallet_Container"] button:hover,
+.ock-wallet-connect-button:hover,
+button[data-testid="ockConnectWallet_Container"]:hover {
+  background: linear-gradient(135deg, #134e4a 0%, #042f2e 100%) !important;
+  border-color: #134e4a !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3) !important;
+}
+
+/* Connected wallet button - match header transparent style */
+[data-testid="ockConnectWallet_Container"][data-connected="true"] button,
+.ock-wallet-connected button {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+[data-testid="ockConnectWallet_Container"][data-connected="true"] button:hover,
+.ock-wallet-connected button:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Dark mode wallet button styling */
+.dark [data-testid="ockConnectWallet_Container"] button,
+.dark .ock-wallet-connect-button,
+.dark button[data-testid="ockConnectWallet_Container"] {
+  background: linear-gradient(135deg, #0f766e 0%, #134e4a 100%) !important;
+  border: 1px solid #0f766e !important;
+}
+
+.dark [data-testid="ockConnectWallet_Container"] button:hover,
+.dark .ock-wallet-connect-button:hover,
+.dark button[data-testid="ockConnectWallet_Container"]:hover {
+  background: linear-gradient(135deg, #134e4a 0%, #042f2e 100%) !important;
+  border-color: #134e4a !important;
+}
+
 /* Particle animation */
 .particles {
   position: absolute;
