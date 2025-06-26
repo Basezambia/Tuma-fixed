@@ -317,9 +317,9 @@ const Header = () => {
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${
       showHeader ? 'translate-y-0' : '-translate-y-full'
     } ${lastScrollY > 10 ? 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm' : 'bg-transparent'}`}>
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-        <div className="flex items-center">
-          <NavLink to="/send" className="text-2xl font-bold text-gray-900 dark:text-white hover:text-green-600 dark:hover:text-green-400 transition-colors">
+      <div className="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 flex items-center justify-between h-16 min-w-0">
+        <div className="flex items-center min-w-0 flex-shrink-0">
+          <NavLink to="/send" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap">
             TUMA
           </NavLink>
         </div>

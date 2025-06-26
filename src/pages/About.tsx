@@ -9,7 +9,7 @@ const About = () => {
       {/* Enhanced Hero Section */}
       <section className="relative pt-40 pb-40 overflow-hidden">
         {/* Animated Background */}
-        <div className="absolute inset-0" style={{backgroundImage: 'url("/gray background.png")', backgroundSize: 'cover', backgroundPosition: 'center'}}>
+        <div className="absolute inset-0" style={{backgroundImage: 'url("/gray-background.png")', backgroundSize: 'cover', backgroundPosition: 'center'}}>
           <div className="absolute inset-0 bg-black/20"></div>
           {/* Floating Elements */}
           <div className="absolute top-20 left-10 w-20 h-20 bg-green-400/20 rounded-full blur-xl animate-pulse"></div>

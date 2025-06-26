@@ -51,64 +51,78 @@ const Documents = () => {
     return () => window.removeEventListener('tuma:newSentFile', handler);
   }, [userAddress]);
 
+  // Define fetchDocuments function outside useEffect so it can be reused
+  const fetchDocuments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Around line 45-50, after fetching files:
+      const received = await arweaveService.getReceivedFiles(userAddress?.toLowerCase() || "");
+      const sent = await arweaveService.getSentFiles(userAddress?.toLowerCase() || "");
+      
+      // Check for new received files and emit events
+      const previousReceivedIds = receivedDocs.map(doc => doc.id);
+      const newReceivedFiles = received.filter(doc => !previousReceivedIds.includes(doc.id));
+      
+      newReceivedFiles.forEach(file => {
+        // Emit event for new received file
+        const event = new CustomEvent('tuma:newReceivedFile', {
+          detail: { id: file.id, metadata: file.metadata }
+        });
+        window.dispatchEvent(event);
+      });
+      
+      // Filter out vault files from both received and sent documents
+      const filteredReceived = received.filter(file => 
+        !file.metadata.description?.includes("[VAULT]") &&
+        !file.metadata.documentId?.startsWith("vault_")
+      );
+      
+      const filteredSent = sent.filter(file => 
+        !file.metadata.description?.includes("[VAULT]") &&
+        !file.metadata.documentId?.startsWith("vault_")
+      );
+      
+      setReceivedDocs(filteredReceived);
+      setSentDocs(filteredSent);
+      
+      // After fetching, fetch payment statuses for all docs with chargeId
+      const allDocs = [...filteredReceived, ...filteredSent];
+      const statusMap: Record<string, PaymentStatus> = {};
+      setStatusLoading(true);
+      await Promise.all(allDocs.map(async (doc) => {
+        const chargeId = doc.metadata.chargeId;
+        if (chargeId) {
+          statusMap[doc.id] = await fetchPaymentStatus(chargeId);
+        } else {
+          statusMap[doc.id] = 'success'; // If no chargeId, treat as paid (legacy)
+        }
+      }));
+      setPaymentStatuses(statusMap);
+      setStatusLoading(false);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      setError("Failed to fetch documents. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch documents from Arweave
   useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        // Around line 45-50, after fetching files:
-        const received = await arweaveService.getReceivedFiles(userAddress?.toLowerCase() || "");
-        const sent = await arweaveService.getSentFiles(userAddress?.toLowerCase() || "");
-        
-        // Check for new received files and emit events
-        const previousReceivedIds = receivedDocs.map(doc => doc.id);
-        const newReceivedFiles = received.filter(doc => !previousReceivedIds.includes(doc.id));
-        
-        newReceivedFiles.forEach(file => {
-          // Emit event for new received file
-          const event = new CustomEvent('tuma:newReceivedFile', {
-            detail: { id: file.id, metadata: file.metadata }
-          });
-          window.dispatchEvent(event);
-        });
-        
-        // Filter out vault files from both received and sent documents
-        const filteredReceived = received.filter(file => 
-          !file.metadata.description?.includes("[VAULT]") &&
-          !file.metadata.documentId?.startsWith("vault_")
-        );
-        
-        const filteredSent = sent.filter(file => 
-          !file.metadata.description?.includes("[VAULT]") &&
-          !file.metadata.documentId?.startsWith("vault_")
-        );
-        
-        setReceivedDocs(filteredReceived);
-        setSentDocs(filteredSent);
-        
-        // After fetching, fetch payment statuses for all docs with chargeId
-        const allDocs = [...filteredReceived, ...filteredSent];
-        const statusMap: Record<string, PaymentStatus> = {};
-        setStatusLoading(true);
-        await Promise.all(allDocs.map(async (doc) => {
-          const chargeId = doc.metadata.chargeId;
-          if (chargeId) {
-            statusMap[doc.id] = await fetchPaymentStatus(chargeId);
-          } else {
-            statusMap[doc.id] = 'success'; // If no chargeId, treat as paid (legacy)
-          }
-        }));
-        setPaymentStatuses(statusMap);
-        setStatusLoading(false);
-      } catch (error) {
-        console.error("Error fetching documents:", error);
-        setError("Failed to fetch documents. Please try again later.");
-      } finally {
-        setLoading(false);
+    if (userAddress) fetchDocuments();
+  }, [userAddress]);
+
+  // Listen for upload completion events to refresh document counts
+  useEffect(() => {
+    const handleUploadComplete = () => {
+      if (userAddress) {
+        fetchDocuments();
       }
     };
-    if (userAddress) fetchDocuments();
+
+    window.addEventListener('uploadComplete', handleUploadComplete);
+    return () => window.removeEventListener('uploadComplete', handleUploadComplete);
   }, [userAddress]);
 
   // Close dropdown when clicking outside
@@ -515,14 +529,28 @@ const Documents = () => {
                                   <button 
                                     className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
                                     title="View document"
-                                    onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
+                                    onClick={() => {
+                                      // For multi-recipient files, pass the current user's address as recipient
+                                      const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                        typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                        r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                      ) ? userAddress : doc.metadata.recipient;
+                                      downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                    }}
                                   >
                                     <FileSearch size={16} />
                                   </button>
                                   <button 
                                     className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
                                     title="Download"
-                                    onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
+                                    onClick={() => {
+                                      // For multi-recipient files, pass the current user's address as recipient
+                                      const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                        typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                        r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                      ) ? userAddress : doc.metadata.recipient;
+                                      downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                    }}
                                   >
                                     <ArrowDownToLine size={16} />
                                   </button>
@@ -534,47 +562,52 @@ const Documents = () => {
                       </table>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 p-2 sm:p-3">
                       {paginatedReceived.map((doc) => {
                         const fileName = doc.metadata.name;
                         const fileExtension = fileName.split('.').pop() || '';
                         const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-                        const truncatedName = baseName.length > 20 
-                          ? baseName.substring(0, 20) + '.' + fileExtension
+                        const truncatedName = baseName.length > 12 
+                          ? baseName.substring(0, 12) + '.' + fileExtension
                           : fileName;
                         
                         return (
                           <div 
                             key={doc.id}
-                            className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden aspect-[3/4]"
+                            className="group bg-white/90 dark:bg-gray-800/90 rounded-lg border border-gray-200/50 dark:border-gray-600/50 hover:shadow-md transition-all duration-200 overflow-hidden aspect-[3/4] min-w-0"
                           >
-                            <div className="p-2">
-                              <div className="w-full h-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-md flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+                            <div className="p-1.5 sm:p-2">
+                              <div className="w-full h-12 sm:h-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-md flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
                                 <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
                               </div>
                             </div>
-                            <div className="px-2 pb-2 relative">
-                              <h3 className="font-medium text-gray-900 dark:text-white text-xs mb-1 truncate" title={doc.metadata.name}>
+                            <div className="px-1.5 sm:px-2 pb-1.5 sm:pb-2 relative">
+                              <h3 className="font-medium text-gray-900 dark:text-white text-xs mb-1 truncate leading-tight" title={doc.metadata.name}>
                                 {truncatedName}
                               </h3>
-                              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mb-1 truncate">
                                 {formatDate(doc.metadata.timestamp)}
                               </p>
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-gray-400 dark:text-gray-500">{formatFileSize(doc.metadata.size)}</span>
-                                <div className="relative">
+                                <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{formatFileSize(doc.metadata.size)}</span>
+                                <div className="relative flex-shrink-0">
                                   <button 
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
                                     onClick={() => setOpenDropdown(openDropdown === doc.id ? null : doc.id)}
                                   >
-                                    <MoreVertical size={12} />
+                                    <MoreVertical size={10} />
                                   </button>
                                   {openDropdown === doc.id && (
                                     <div className="absolute right-0 bottom-full mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-10 min-w-[120px]">
                                       <button 
                                         className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
                                         onClick={() => {
-                                          downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient);
+                                          // For multi-recipient files, pass the current user's address as recipient
+                                          const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                            typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                            r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                          ) ? userAddress : doc.metadata.recipient;
+                                          downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
                                           setOpenDropdown(null);
                                         }}
                                       >
@@ -584,7 +617,12 @@ const Documents = () => {
                                       <button 
                                         className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
                                         onClick={() => {
-                                          downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient);
+                                          // For multi-recipient files, pass the current user's address as recipient
+                                          const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                            typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                            r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                          ) ? userAddress : doc.metadata.recipient;
+                                          downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
                                           setOpenDropdown(null);
                                         }}
                                       >
@@ -670,7 +708,14 @@ const Documents = () => {
                                   <button 
                                     className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
                                     title="Download"
-                                    onClick={() => downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient)}
+                                    onClick={() => {
+                                      // For multi-recipient files, pass the current user's address as recipient
+                                      const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                        typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                        r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                      ) ? userAddress : doc.metadata.recipient;
+                                      downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                    }}
                                   >
                                     <ArrowDownToLine size={16} />
                                   </button>
@@ -730,7 +775,12 @@ const Documents = () => {
                                        <button 
                                          className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 flex items-center gap-2"
                                          onClick={() => {
-                                           downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, doc.metadata.recipient);
+                                           // For multi-recipient files, pass the current user's address as recipient
+                                           const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                             typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                             r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                           ) ? userAddress : doc.metadata.recipient;
+                                           downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
                                            setOpenDropdown(null);
                                          }}
                                        >

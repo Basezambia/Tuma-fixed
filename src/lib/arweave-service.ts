@@ -232,7 +232,8 @@ class ArweaveService {
     try {
       if (onProgress) onProgress(10);
       
-      const base64Data = Buffer.from(file).toString('base64');
+      // Convert Uint8Array to base64 using browser-compatible method
+      const base64Data = btoa(String.fromCharCode(...file));
       
       if (onProgress) onProgress(30);
       

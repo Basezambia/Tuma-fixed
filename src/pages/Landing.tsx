@@ -178,7 +178,7 @@ const Landing = () => {
     <div 
       className="min-h-screen relative"
       style={{
-        backgroundImage: "url('/gray background.png')",
+        backgroundImage: "url('/gray-background.png')",
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed'
@@ -196,11 +196,29 @@ const Landing = () => {
         <div className="relative">
           {/* Hero Background Image */}
           <div className="w-full h-screen">
-            <img 
-              src="/Gray Green Bold Pitch Deck Presentation (Website).png"
-              alt="Tuma - Store Forever, Pay Once"
-              className="w-full h-full object-cover"
-            />
+            <picture>
+              {/* Mobile devices (up to 480px) */}
+              <source 
+                media="(max-width: 480px)" 
+                srcSet="/hero-image-mobile.png" 
+              />
+              {/* Tablet devices (481px to 768px) */}
+              <source 
+                media="(max-width: 768px)" 
+                srcSet="/hero-image-tablet.png" 
+              />
+              {/* Desktop devices (769px and up) */}
+              <source 
+                media="(min-width: 769px)" 
+                srcSet="/main-hero.png" 
+              />
+              {/* Fallback image for browsers that don't support picture element */}
+              <img 
+                src="/hero-image.png"
+                alt="Tuma - Store Forever, Pay Once"
+                className="w-full h-full object-cover"
+              />
+            </picture>
           </div>
         </div>
 

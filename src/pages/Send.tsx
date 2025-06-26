@@ -424,8 +424,7 @@ const Send = () => {
         throw new Error('Invalid service fee amount');
       }
 
-      // Update UI state
-      setPaymentStatus('processing');
+      // Don't set processing state here - wait for actual payment to start
       setPaymentError(null);
       
       console.log('Initiating payment with:', {
@@ -918,8 +917,26 @@ const Send = () => {
           // Skip if we already have this recipient in our accumulator
           if (acc.some(r => r.address.toLowerCase() === recipientAddress)) return acc;
           
-          // Create a recipient entry
-          const recipientName = file.metadata.name ? `${file.metadata.name.split('_')[0]}` : 'Unknown';
+          // Create a recipient entry - try to get the actual recipient name from tags
+          let recipientName = 'Unknown';
+          
+          // First, try to find the recipient name from Recipient-Name-X tags
+          const recipientNameTag = Object.keys(file.metadata)
+            .find(key => key.startsWith('Recipient-Name-') && 
+                  file.metadata[key]?.toLowerCase() === recipientAddress);
+          
+          if (recipientNameTag) {
+            recipientName = file.metadata[recipientNameTag];
+          } else {
+            // Fallback: try to extract a meaningful name from the address
+            if (recipientAddress.includes('.eth') || recipientAddress.includes('.base.eth')) {
+              recipientName = recipientAddress;
+            } else {
+              // For wallet addresses, show a shortened version
+              recipientName = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`;
+            }
+          }
+          
           return [...acc, {
             name: recipientName,
             address: recipientAddress,
@@ -1209,11 +1226,13 @@ const Send = () => {
                               value={currentRecipient.name}
                               onChange={(e) => setCurrentRecipient({...currentRecipient, name: e.target.value})}
                               onKeyPress={(e) => {
-                                if (e.key === 'Enter' && currentRecipient.name && currentRecipient.address) {
+                                if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  setRecipients([...recipients, currentRecipient]);
-                                  setCurrentRecipient({name: "", address: "", originalInput: ""});
-                                  saveRecentRecipient(currentRecipient);
+                                  if (currentRecipient.name && currentRecipient.address) {
+                                    setRecipients([...recipients, currentRecipient]);
+                                    setCurrentRecipient({name: "", address: "", originalInput: ""});
+                                    saveRecentRecipient(currentRecipient);
+                                  }
                                 }
                               }}
                             />
@@ -1242,11 +1261,13 @@ const Send = () => {
                               value={currentRecipient.address}
                               onChange={(e) => setCurrentRecipient({...currentRecipient, address: e.target.value})}
                               onKeyPress={(e) => {
-                                if (e.key === 'Enter' && currentRecipient.name && currentRecipient.address) {
+                                if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  setRecipients([...recipients, currentRecipient]);
-                                  setCurrentRecipient({name: "", address: "", originalInput: ""});
-                                  saveRecentRecipient(currentRecipient);
+                                  if (currentRecipient.name && currentRecipient.address) {
+                                    setRecipients([...recipients, currentRecipient]);
+                                    setCurrentRecipient({name: "", address: "", originalInput: ""});
+                                    saveRecentRecipient(currentRecipient);
+                                  }
                                 }
                               }}
                             />
@@ -1499,7 +1520,18 @@ const Send = () => {
           {!uploading && !uploadComplete && (
             <>
               {showPaymentDialog && (
-                <div className="w-full">
+                <div className="w-full relative">
+                  {/* Loading overlay when payment is processing */}
+                  {paymentStatus === 'processing' && (
+                    <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg z-10 flex flex-col items-center justify-center">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="w-4 h-4 bg-blue-600 rounded-full animate-pulse"></div>
+                        <div className="w-4 h-4 bg-blue-600 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                        <div className="w-4 h-4 bg-blue-600 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                      </div>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm font-medium">Payment in progress...</p>
+                    </div>
+                  )}
                   <Checkout
               chargeHandler={async () => {
                 try {
@@ -1555,9 +1587,15 @@ const Send = () => {
                   } else if (statusName === 'pending') {
                     console.log('Payment pending...');
                     setPaymentStatus('processing');
-                  } else if (['init', 'fetchingData', 'ready'].includes(statusName)) {
-                    console.log('Payment processing...');
-                    setPaymentStatus('processing');
+                  } else if (statusName === 'init') {
+                    console.log('Payment initialized...');
+                    setPaymentStatus('idle');
+                  } else if (statusName === 'fetchingData') {
+                    console.log('Payment fetching data...');
+                    setPaymentStatus('idle'); // Keep idle until user actually pays
+                  } else if (statusName === 'ready') {
+                    console.log('Payment ready...');
+                    setPaymentStatus('idle'); // Keep idle until user actually pays
                   }
                 } catch (error) {
                   console.error('Error in payment status handler:', error);
@@ -1653,6 +1691,17 @@ const Send = () => {
                   className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm transition-all duration-200"
                   value={currentRecipient.name}
                   onChange={(e) => setCurrentRecipient({...currentRecipient, name: e.target.value})}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (currentRecipient.name && currentRecipient.address) {
+                        setRecipients([...recipients, currentRecipient]);
+                        setCurrentRecipient({name: "", address: "", originalInput: ""});
+                        saveRecentRecipient(currentRecipient);
+                        setShowRecipientDialog(false);
+                      }
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -1675,6 +1724,17 @@ const Send = () => {
                   value={currentRecipient.address}
                   onChange={(e) => handleAddressChange(e.target.value)}
                   disabled={isResolvingName}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (currentRecipient.name && currentRecipient.address) {
+                        setRecipients([...recipients, currentRecipient]);
+                        setCurrentRecipient({name: "", address: "", originalInput: ""});
+                        saveRecentRecipient(currentRecipient);
+                        setShowRecipientDialog(false);
+                      }
+                    }
+                  }}
                 />
                 {isResolvingName && (
                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
@@ -1707,19 +1767,13 @@ const Send = () => {
               type="button"
               onClick={() => {
                 if (currentRecipient.name && currentRecipient.address) {
-                  // Check if address is an unresolved ENS/Base name
-                  if ((currentRecipient.address.includes('.eth') || currentRecipient.address.includes('.base.eth')) && 
-                      !currentRecipient.address.startsWith('0x')) {
-                    toast.error('Please wait for the name to be resolved to an address before adding.');
-                    return;
-                  }
                   setRecipients([...recipients, currentRecipient]);
                   setCurrentRecipient({name: "", address: "", originalInput: ""});
                   saveRecentRecipient(currentRecipient);
                   setShowRecipientDialog(false);
                 }
               }}
-              disabled={!currentRecipient.name || !currentRecipient.address || isResolvingName}
+              disabled={!currentRecipient.name || !currentRecipient.address}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               Add Recipient
