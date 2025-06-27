@@ -244,7 +244,7 @@ const Profile = () => {
             <Button 
               variant={activeTab === "profile" ? "default" : "outline"} 
               onClick={() => setActiveTab("profile")}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 ${activeTab === "profile" ? "bg-teal-700 hover:bg-teal-800 text-white" : ""}`}
             >
               <User size={18} />
               <span className="hidden sm:inline">Profile</span>
@@ -252,7 +252,7 @@ const Profile = () => {
             <Button 
               variant={activeTab === "funding" ? "default" : "outline"} 
               onClick={() => setActiveTab("funding")}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 ${activeTab === "funding" ? "bg-teal-700 hover:bg-teal-800 text-white" : ""}`}
             >
               <Wallet size={18} />
               <span className="hidden sm:inline">Fund Wallet</span>
@@ -339,7 +339,7 @@ const Profile = () => {
                   <p className="text-2xl font-bold dark:text-white">{walletBalance !== null ? walletBalance : '-'}</p>
                 </div>
                 <Button 
-                  className="w-full" 
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white" 
                   onClick={() => setActiveTab("funding")}
                 >
                   Fund Wallet
@@ -400,34 +400,14 @@ const Profile = () => {
                   presetAmountInputs={['10', '20', '50']}
                 />
               </div>
-              <div className="bg-white/60 dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-white/20 dark:border-gray-700">
-                <h3 className="text-lg font-semibold mb-4 dark:text-white">Why Fund Your Wallet?</h3>
-                <ul className="space-y-4">
-                  <li className="flex items-start gap-2">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0 mt-0.5">•</div>
-                    <span className="dark:text-gray-300">Pay for document sharing services</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0 mt-0.5">•</div>
-                    <span className="dark:text-gray-300">Cover gas fees for blockchain transactions</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0 mt-0.5">•</div>
-                    <span className="dark:text-gray-300">Ensure smooth operation of the application</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0 mt-0.5">•</div>
-                    <span className="dark:text-gray-300">Access premium features and higher file size limits</span>
-                  </li>
-                </ul>
-              </div>
+
             </div>
             {/* Sidebar */}
             <div className="space-y-6">
               <div className="backdrop-blur-xl bg-white/40 dark:bg-gray-800 border border-white/20 dark:border-gray-700 shadow-lg rounded-xl p-6">
                 <h3 className="text-lg font-semibold mb-4 dark:text-white">About Funding</h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  TUMA uses blockchain technology to securely share your documents. To use the service, you'll need ETH in your wallet to pay for:
+                  TUMA uses blockchain technology to securely share your documents. To use the service, you'll need USDC in your wallet to pay for:
                 </p>
                 <ul className="space-y-2 mb-4">
                   <li className="flex items-start gap-2">
