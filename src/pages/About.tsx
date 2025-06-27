@@ -275,7 +275,7 @@ const About = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold">Email</h4>
-                    <p className="text-gray-600 dark:text-gray-300">hello@tuma.com</p>
+                    <p className="text-gray-600 dark:text-gray-300">tumaapp@gmail.com</p>
                   </div>
                 </div>
                 
@@ -285,7 +285,7 @@ const About = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold">Office</h4>
-                    <p className="text-gray-600 dark:text-gray-300">San Francisco, CA</p>
+                    <p className="text-gray-600 dark:text-gray-300">onchain</p>
                   </div>
                 </div>
               </div>

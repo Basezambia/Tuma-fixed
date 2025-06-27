@@ -29,7 +29,7 @@ export const CustomWalletModal = ({ isOpen, onClose, onConnect }: CustomWalletMo
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-gray-500 md:bg-white">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

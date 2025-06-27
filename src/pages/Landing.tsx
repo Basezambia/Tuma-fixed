@@ -19,10 +19,25 @@ const Landing = () => {
   const [arweavePricing, setArweavePricing] = useState(null);
   const [isLoadingPricing, setIsLoadingPricing] = useState(true);
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  // Calculate dynamic price with 7% profit margin
+  const calculateDynamicPrice = useCallback((sizeInMB) => {
+    if (!arweavePricing || !arweavePricing.pricePerMBInUSD) {
+      return 'Loading...'; // Show loading state instead of artificial minimum
+    }
+
+    const basePrice = sizeInMB * arweavePricing.pricePerMBInUSD;
+    const networkFactor = arweavePricing.networkFactor || 1;
+    const adjustedPrice = basePrice * networkFactor;
+    const finalPrice = adjustedPrice * 1.07; // 7% profit margin (reduced from 35%)
+
+    // Pure real-time Arweave pricing without artificial minimums
+    return finalPrice.toFixed(2);
+  }, [arweavePricing]);
   
-  // Calculate pricing variables
-  const arPrice = arweavePricing ? (0.01 / (arweavePricing.pricePerARInUSD || 1)).toFixed(4) : '0.01';
-  const usdPrice = '0.01';
+  // Calculate pricing variables using real-time data only
+  const arPrice = arweavePricing ? (parseFloat(calculateDynamicPrice(1)) / (arweavePricing.pricePerARInUSD || 1)).toFixed(4) : 'Loading...';
+  const usdPrice = arweavePricing ? `$${calculateDynamicPrice(1)} USDC` : 'Loading...';
 
   // Fetch Arweave pricing data
   const fetchArweavePricing = useCallback(async () => {
@@ -39,32 +54,18 @@ const Landing = () => {
 
   useEffect(() => {
     fetchArweavePricing();
-    // Refresh pricing every 5 minutes
-    const interval = setInterval(fetchArweavePricing, 5 * 60 * 1000);
+    // Refresh pricing every 5 seconds based on actual network conditions
+    const interval = setInterval(fetchArweavePricing, 5 * 1000);
     return () => clearInterval(interval);
   }, [fetchArweavePricing]);
-
-  // Calculate dynamic price with 20% profit margin
-  const calculateDynamicPrice = useCallback((sizeInMB) => {
-    if (!arweavePricing || !arweavePricing.pricePerMBInUSD) {
-      return '$0.01 USDC'; // Fallback minimum
-    }
-
-    const basePrice = sizeInMB * arweavePricing.pricePerMBInUSD;
-    const networkFactor = arweavePricing.networkFactor || 1;
-    const adjustedPrice = basePrice * networkFactor;
-    const finalPrice = adjustedPrice * 1.20; // 20% profit margin
-    const minPrice = 0.01; // Minimum $0.01
-
-    return `$${Math.max(finalPrice, minPrice).toFixed(2)} USDC`;
-  }, [arweavePricing]);
 
   // Calculate tier price for display
   const calculateTierPrice = useCallback((sizeInMB) => {
     if (isLoadingPricing) {
       return 'Loading...';
     }
-    return calculateDynamicPrice(sizeInMB);
+    const price = calculateDynamicPrice(sizeInMB);
+    return price === 'Loading...' ? price : `$${price} USDC`;
   }, [calculateDynamicPrice, isLoadingPricing]);
 
   const keyFeatures = [
@@ -273,14 +274,14 @@ const Landing = () => {
                 {isConnected ? (
                   <button 
                     onClick={() => navigate('/send')}
-                    className="bg-green-700 hover:bg-green-800 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl border border-green-600/50"
+                    className="bg-teal-700 hover:bg-teal-800 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl border border-teal-600/50"
                   >
                     Start Storing Forever
                   </button>
                 ) : (
                   <div className="relative">
                     <OnchainWallet>
-                      <ConnectWallet className="bg-green-700 hover:bg-green-800 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl border border-green-600/50">
+                      <ConnectWallet className="bg-teal-700 hover:bg-teal-800 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 shadow-2xl border border-teal-600/50">
                         <span>Start Storing Forever</span>
                       </ConnectWallet>
                     </OnchainWallet>
@@ -447,7 +448,7 @@ const Landing = () => {
                 Ready to Own Your Data Forever?
               </h2>
               <p className="text-xl text-gray-700 mb-8">
-                <span className="bg-white/40 backdrop-blur-sm px-3 py-2 rounded-lg font-semibold text-gray-800 border border-white/50">Get a free consultation today</span>
+                Join thousands of users who have taken control of their data
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button 

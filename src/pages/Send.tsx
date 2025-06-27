@@ -37,7 +37,7 @@ const Send = () => {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [serviceFee, setServiceFee] = useState<string>('2.00'); // Example: $2.00 USDC
+  const [serviceFee, setServiceFee] = useState<string>('0.00'); // Real-time calculation only
   const [paymentCurrency, setPaymentCurrency] = useState<'USDC'>('USDC');
   const [documentId, setDocumentId] = useState("");
   const [arweaveTxId, setArweaveTxId] = useState<string | null>(null);
@@ -233,7 +233,7 @@ const Send = () => {
     }
   }, []);
 
-  // Calculate dynamic pricing based on Arweave token price with 35% profit margin
+  // Calculate dynamic pricing based on Arweave token price with 7% profit margin
   const calculateDynamicPrice = useCallback((sizeMB: number, pricingData: any) => {
     if (!pricingData) return null;
     
@@ -243,13 +243,11 @@ const Send = () => {
     // Apply network factor (represents network congestion, etc.)
     const adjustedCostInUSD = baseCostInUSD * pricingData.networkFactor;
     
-    // Add 35% profit margin as requested
-    const totalCostWithMargin = adjustedCostInUSD * 1.35;
+    // Add 7% profit margin (reduced from 35%)
+    const totalCostWithMargin = adjustedCostInUSD * 1.07;
     
-    // Ensure minimum fee of $0.01 for very small files
-    const finalPrice = Math.max(0.01, totalCostWithMargin);
-    
-    return finalPrice.toFixed(2);
+    // Pure real-time Arweave pricing without artificial minimums
+    return totalCostWithMargin.toFixed(2);
   }, []);
 
   // Calculate pricing for specific size tiers using real-time Arweave data
@@ -266,7 +264,7 @@ const Send = () => {
       let fee = null;
       const totalSizeMB = getTotalFileSize() / 1024 / 1024;
       
-      // All pricing tiers now use dynamic real-time pricing with 35% profit margin
+      // All pricing tiers now use dynamic real-time pricing with 7% profit margin
       if (totalSizeMB < 1) {
         tier = 'Below 1MB';
       } else if (totalSizeMB < 10) {
@@ -293,11 +291,11 @@ const Send = () => {
         if (dynamicFee) {
           fee = dynamicFee;
         } else {
-          fee = '0.01'; // Minimum fallback
+          fee = '0.00'; // No artificial minimum
         }
       } else {
-        // Set minimum fee while fetching real-time data
-        fee = '0.01';
+        // Set loading state while fetching real-time data
+        fee = '0.00';
         
         // Fetch fresh pricing data
         fetchArweavePricing().then(pricingData => {
@@ -1228,7 +1226,10 @@ const Send = () => {
                               onKeyPress={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
-                                  if (currentRecipient.name && currentRecipient.address) {
+                                  // Move focus to address field if name is filled but address is empty
+                                  if (currentRecipient.name && !currentRecipient.address) {
+                                    document.getElementById('recipient-address')?.focus();
+                                  } else if (currentRecipient.name && currentRecipient.address) {
                                     setRecipients([...recipients, currentRecipient]);
                                     setCurrentRecipient({name: "", address: "", originalInput: ""});
                                     saveRecentRecipient(currentRecipient);
@@ -1259,7 +1260,7 @@ const Send = () => {
                               placeholder="0x... or arweave:..."
                               className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm font-mono transition-all duration-200"
                               value={currentRecipient.address}
-                              onChange={(e) => setCurrentRecipient({...currentRecipient, address: e.target.value})}
+                              onChange={(e) => handleAddressChange(e.target.value)}
                               onKeyPress={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
@@ -1267,6 +1268,8 @@ const Send = () => {
                                     setRecipients([...recipients, currentRecipient]);
                                     setCurrentRecipient({name: "", address: "", originalInput: ""});
                                     saveRecentRecipient(currentRecipient);
+                                    // Focus back to name field for next recipient
+                                    document.getElementById('recipient-name')?.focus();
                                   }
                                 }
                               }}
@@ -1301,7 +1304,7 @@ const Send = () => {
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="inline-flex items-center px-6 py-3 rounded-lg bg-doc-deep-blue hover:bg-blue-600 text-white font-medium transition-colors"
+                    className="inline-flex items-center px-6 py-3 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-medium transition-colors"
                   >
                     <SendIcon size={18} className="mr-2" />
                     Send

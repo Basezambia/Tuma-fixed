@@ -200,7 +200,7 @@ const Vault = () => {
     }
   }, []);
 
-  // Calculate dynamic pricing based on Arweave token price with 35% profit margin
+  // Calculate dynamic pricing based on Arweave token price with 7% profit margin
   const calculateDynamicPrice = useCallback((sizeMB: number, pricingData: any) => {
     if (!pricingData) return null;
     
@@ -210,13 +210,11 @@ const Vault = () => {
     // Apply network factor (represents network congestion, etc.)
     const adjustedCostInUSD = baseCostInUSD * pricingData.networkFactor;
     
-    // Add 35% profit margin as requested
-    const totalCostWithMargin = adjustedCostInUSD * 1.35;
+    // Add 7% profit margin (reduced from 35%)
+    const totalCostWithMargin = adjustedCostInUSD * 1.07;
     
-    // Ensure minimum fee of $0.01 for very small files
-    const finalPrice = Math.max(0.01, totalCostWithMargin);
-    
-    return finalPrice.toFixed(2);
+    // Pure real-time Arweave pricing without artificial minimums
+    return totalCostWithMargin.toFixed(2);
   }, []);
 
   // Calculate pricing for specific size tiers using real-time Arweave data
@@ -239,7 +237,7 @@ const Vault = () => {
       let fee = null;
       const totalSizeMB = getTotalFileSize() / 1024 / 1024;
       
-      // All pricing tiers now use dynamic real-time pricing with 35% profit margin
+      // All pricing tiers now use dynamic real-time pricing with 7% profit margin
       if (totalSizeMB < 1) {
         tier = 'Below 1MB';
       } else if (totalSizeMB < 10) {
@@ -266,11 +264,11 @@ const Vault = () => {
         if (dynamicFee) {
           fee = dynamicFee;
         } else {
-          fee = '0.01'; // Minimum fallback
+          fee = '0.00'; // No artificial minimum
         }
       } else {
-        // Set minimum fee while fetching real-time data
-        fee = '0.01';
+        // Set loading state while fetching real-time data
+        fee = '0.00';
         
         // Fetch fresh pricing data
         fetchArweavePricing().then(pricingData => {

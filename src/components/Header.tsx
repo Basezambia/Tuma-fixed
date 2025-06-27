@@ -176,10 +176,14 @@ const NotificationBell = () => {
     setShowNotifications(!showNotifications);
     if (hasNotification) {
       setHasNotification(false);
-      // Clear the notification state from localStorage when user checks notifications
+      // Clear the notification state and notifications from localStorage when user checks notifications
       if (userAddress) {
         const hasNotificationKey = `tuma_has_notification_${userAddress.toLowerCase()}`;
+        const notificationKey = `tuma_notifications_${userAddress.toLowerCase()}`;
         localStorage.setItem(hasNotificationKey, 'false');
+        // Clear all notifications when bell is clicked
+        localStorage.removeItem(notificationKey);
+        setNotifications([]);
       }
     }
   };
