@@ -235,7 +235,7 @@ export class SecureArweaveService {
                 { name: "App-Name", values: ["TUMA"] },
                 { name: "Recipient", values: ["${identifier}"] }
               ]
-              first: 100
+              first: 10000
             ) {
               edges {
                 node {

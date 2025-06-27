@@ -520,7 +520,7 @@ class ArweaveService {
             { name: "App-Name", values: ["TUMA-Document-Exchange"] },
             { name: "Recipient-${i}", values: [${identifiersList}] }
           ]
-          first: 100
+          first: 10000
         ) {
           edges {
             node {
@@ -633,7 +633,7 @@ class ArweaveService {
               { name: "App-Name", values: ["TUMA-Document-Exchange"] },
               { name: "Sender", values: [${senderIdentifiers.map(id => `"${id}"`).join(', ')}] }
             ]
-            first: 100
+            first: 1000
           ) {
             edges {
               node {
