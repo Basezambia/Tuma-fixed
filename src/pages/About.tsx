@@ -1,4 +1,4 @@
-import { Users, Target, Award, Globe, Shield, Zap, ArrowRight, Building, Mail, Phone, Sparkles, Lock, Database, Clock, CheckCircle } from "lucide-react";
+import { Users, Target, Award, Network, ShieldCheck, Bolt, ArrowRight, Building, Mail, Phone, Sparkles, Lock, Database, Clock, CheckCircle } from "lucide-react";
 import Header from "@/components/Header";
 
 const About = () => {
@@ -76,7 +76,7 @@ const About = () => {
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-gray-50 dark:bg-gray-700 p-8 rounded-xl">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mb-6">
-                <Shield className="w-8 h-8 text-green-600 dark:text-green-400" />
+                <ShieldCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
                 Secure File Storage
@@ -88,7 +88,7 @@ const About = () => {
             
             <div className="bg-gray-50 dark:bg-gray-700 p-8 rounded-xl">
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mb-6">
-                <Globe className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                <Network className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
                 Global Accessibility
@@ -100,7 +100,7 @@ const About = () => {
             
             <div className="bg-gray-50 dark:bg-gray-700 p-8 rounded-xl">
               <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mb-6">
-                <Zap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                <Bolt className="w-8 h-8 text-purple-600 dark:text-purple-400" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
                 One-Time Payment
@@ -207,7 +207,7 @@ const About = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-green-600 dark:text-green-400" />
+                <ShieldCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
                 Security First
@@ -243,7 +243,7 @@ const About = () => {
             
             <div className="text-center">
               <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-xl flex items-center justify-center mx-auto mb-4">
-                <Globe className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                <Network className="w-8 h-8 text-orange-600 dark:text-orange-400" />
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
                 Accessibility
