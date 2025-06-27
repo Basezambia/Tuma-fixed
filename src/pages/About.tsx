@@ -11,10 +11,6 @@ const About = () => {
         {/* Animated Background */}
         <div className="absolute inset-0" style={{backgroundImage: 'url("/gray-background.png")', backgroundSize: 'cover', backgroundPosition: 'center'}}>
           <div className="absolute inset-0 bg-black/20"></div>
-          {/* Floating Elements */}
-          <div className="absolute top-20 left-10 w-20 h-20 bg-green-400/20 rounded-full blur-xl animate-pulse"></div>
-          <div className="absolute top-40 right-20 w-32 h-32 bg-blue-400/20 rounded-full blur-xl animate-pulse delay-1000"></div>
-          <div className="absolute bottom-20 left-1/4 w-24 h-24 bg-purple-400/20 rounded-full blur-xl animate-pulse delay-2000"></div>
         </div>
         
         <div className="relative max-w-7xl mx-auto px-6">
