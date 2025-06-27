@@ -466,31 +466,34 @@ const Vault = () => {
       await loadVaultFiles();
       
       // Dispatch notification events for each uploaded file
-      selectedFiles.forEach(file => {
-        // Dispatch uploadComplete event for header notifications
-        const uploadEvent = new CustomEvent('uploadComplete', {
-          detail: {
-            fileName: file.name,
-            success: true
-          }
-        });
-        window.dispatchEvent(uploadEvent);
-        
-        // Dispatch tuma:newSentFile event for vault files
-        const sentFileEvent = new CustomEvent('tuma:newSentFile', {
-          detail: {
-            id: `vault_file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            metadata: {
-              name: file.name,
-              sender: address.toLowerCase(),
-              recipient: address.toLowerCase(), // For vault, sender and recipient are the same
-              timestamp: Date.now(),
-              isVault: true
+      // Add delay to allow Arweave indexing
+      setTimeout(() => {
+        selectedFiles.forEach(file => {
+          // Dispatch uploadComplete event for header notifications
+          const uploadEvent = new CustomEvent('uploadComplete', {
+            detail: {
+              fileName: file.name,
+              success: true
             }
-          }
+          });
+          window.dispatchEvent(uploadEvent);
+          
+          // Dispatch tuma:newSentFile event for vault files
+          const sentFileEvent = new CustomEvent('tuma:newSentFile', {
+            detail: {
+              id: `vault_file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              metadata: {
+                name: file.name,
+                sender: address.toLowerCase(),
+                recipient: address.toLowerCase(), // For vault, sender and recipient are the same
+                timestamp: Date.now(),
+                isVault: true
+              }
+            }
+          });
+          window.dispatchEvent(sentFileEvent);
         });
-        window.dispatchEvent(sentFileEvent);
-      });
+      }, 1000); // 1 second delay before dispatching events
       
       loadVaultFiles();
       setSelectedFiles([]);

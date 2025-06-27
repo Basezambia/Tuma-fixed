@@ -67,13 +67,13 @@ const Profile = () => {
       });
   }, [address]);
 
-  useEffect(() => {
+  const fetchFileStats = async () => {
     if (!address) return;
-    // Fetch sent and received files
-    Promise.all([
-      arweaveService.getSentFiles(address),
-      arweaveService.getReceivedFiles(address)
-    ]).then(([sent, received]) => {
+    try {
+      const [sent, received] = await Promise.all([
+        arweaveService.getSentFiles(address),
+        arweaveService.getReceivedFiles(address)
+      ]);
       // Documents sent/received count
       setDocumentsShared(sent.length);
       setDocumentsReceived(received.length);
@@ -81,12 +81,41 @@ const Profile = () => {
       const sentSize = sent.reduce((acc, file) => acc + (file.metadata?.size || 0), 0);
       const receivedSize = received.reduce((acc, file) => acc + (file.metadata?.size || 0), 0);
       const totalSize = sentSize + receivedSize;
-setStorageUsed(Number(totalSize)); // store as number (bytes)
-    }).catch((err) => {
+      setStorageUsed(Number(totalSize)); // store as number (bytes)
+    } catch (err) {
       setDocumentsShared(null);
       setDocumentsReceived(null);
       setStorageUsed(null);
-    });
+    }
+  };
+
+  useEffect(() => {
+    fetchFileStats();
+  }, [address]);
+
+  // Listen for new sent files to update the count
+  useEffect(() => {
+    const handleNewSentFile = () => {
+      // Add delay to account for Arweave indexing
+      setTimeout(() => {
+        fetchFileStats();
+      }, 2000); // 2 second delay
+    };
+
+    const handleUploadComplete = () => {
+      // Add delay to account for Arweave indexing
+      setTimeout(() => {
+        fetchFileStats();
+      }, 3000); // 3 second delay for upload complete
+    };
+
+    window.addEventListener('tuma:newSentFile', handleNewSentFile);
+    window.addEventListener('uploadComplete', handleUploadComplete);
+    
+    return () => {
+      window.removeEventListener('tuma:newSentFile', handleNewSentFile);
+      window.removeEventListener('uploadComplete', handleUploadComplete);
+    };
   }, [address]);
 
   useEffect(() => {

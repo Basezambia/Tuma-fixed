@@ -787,21 +787,24 @@ const Send = () => {
         localStorage.setItem('sentFiles', JSON.stringify(updatedSentFiles));
         
         // Dispatch tuma:newSentFile event for each successful upload for notifications
-        successfulUploads.forEach(upload => {
-          const event = new CustomEvent('tuma:newSentFile', {
-            detail: {
-              id: upload.id,
-              metadata: {
-                name: upload.name,
-                sender: senderAddress?.toLowerCase() || '',
-                recipient: upload.recipientAddress,
-                timestamp: upload.timestamp,
-                isVault: false
+        // Add delay to allow Arweave indexing
+        setTimeout(() => {
+          successfulUploads.forEach(upload => {
+            const event = new CustomEvent('tuma:newSentFile', {
+              detail: {
+                id: upload.id,
+                metadata: {
+                  name: upload.name,
+                  sender: senderAddress?.toLowerCase() || '',
+                  recipient: upload.recipientAddress,
+                  timestamp: upload.timestamp,
+                  isVault: false
+                }
               }
-            }
+            });
+            window.dispatchEvent(event);
           });
-          window.dispatchEvent(event);
-        });
+        }, 1000); // 1 second delay before dispatching events
         
         // Success!
         setProcessStep('success');
