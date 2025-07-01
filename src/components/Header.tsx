@@ -89,6 +89,11 @@ const NotificationBell = () => {
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
+        // Reset cleared flag when new notification is added
+        if (userAddress) {
+          const clearedKey = `tuma_notifications_cleared_${userAddress.toLowerCase()}`;
+          localStorage.removeItem(clearedKey);
+        }
       } else if (error) {
         const newNotification = {
           id: Date.now().toString(),
@@ -101,6 +106,11 @@ const NotificationBell = () => {
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
+        // Reset cleared flag when new notification is added
+        if (userAddress) {
+          const clearedKey = `tuma_notifications_cleared_${userAddress.toLowerCase()}`;
+          localStorage.removeItem(clearedKey);
+        }
       }
     };
 
@@ -127,6 +137,11 @@ const NotificationBell = () => {
             return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
           });
           setHasNotification(true);
+          // Reset cleared flag when new notification is added
+          if (userAddress) {
+            const clearedKey = `tuma_notifications_cleared_${userAddress.toLowerCase()}`;
+            localStorage.removeItem(clearedKey);
+          }
           return;
         }
         
@@ -147,6 +162,11 @@ const NotificationBell = () => {
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
+        // Reset cleared flag when new notification is added
+        if (userAddress) {
+          const clearedKey = `tuma_notifications_cleared_${userAddress.toLowerCase()}`;
+          localStorage.removeItem(clearedKey);
+        }
       }
     };
 
@@ -176,6 +196,11 @@ const NotificationBell = () => {
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
+        // Reset cleared flag when new notification is added
+        if (userAddress) {
+          const clearedKey = `tuma_notifications_cleared_${userAddress.toLowerCase()}`;
+          localStorage.removeItem(clearedKey);
+        }
       }
     };
 
@@ -198,7 +223,9 @@ const NotificationBell = () => {
   const clearAllNotifications = () => {
     if (userAddress) {
       const notificationKey = `tuma_notifications_${userAddress.toLowerCase()}`;
+      const clearedKey = `tuma_notifications_cleared_${userAddress.toLowerCase()}`;
       localStorage.removeItem(notificationKey);
+      localStorage.setItem(clearedKey, 'true');
       setNotifications([]);
     }
   };
@@ -240,33 +267,56 @@ const NotificationBell = () => {
           </div>
           <div className="max-h-64 overflow-y-auto">
             {notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <div 
-                  key={notification.id} 
-                  className={`p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                    notification.type !== 'failed' ? 'cursor-pointer' : ''
-                  }`}
-                  onClick={() => notification.type !== 'failed' && handleNotificationClick(notification)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-800 dark:text-gray-200">{notification.message}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {new Date(notification.timestamp).toLocaleTimeString()}
-                      </p>
+              (() => {
+                // If all notifications were cleared and we have new ones, show only the latest
+                const wasCleared = localStorage.getItem(`tuma_notifications_cleared_${userAddress?.toLowerCase()}`) === 'true';
+                const displayNotifications = wasCleared ? notifications.slice(0, 1) : notifications.slice(0, 5);
+                
+                return displayNotifications.map((notification, index) => {
+                  const isUnread = index === 0 && !wasCleared; // Only first notification is unread if not cleared
+                  
+                  return (
+                    <div 
+                      key={notification.id} 
+                      className={`p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                        notification.type !== 'failed' ? 'cursor-pointer' : ''
+                      } ${
+                        isUnread ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                      }`}
+                      onClick={() => notification.type !== 'failed' && handleNotificationClick(notification)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className={`text-sm ${
+                            isUnread 
+                              ? 'text-gray-900 dark:text-gray-100 font-medium' 
+                              : 'text-gray-600 dark:text-gray-300'
+                          }`}>
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {new Date(notification.timestamp).toLocaleTimeString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isUnread && (
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          )}
+                          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            notification.type === 'received' 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                              : notification.type === 'failed'
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}>
+                            {notification.type === 'received' ? 'Received' : notification.type === 'failed' ? 'Failed' : 'Sent'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                      notification.type === 'received' 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                        : notification.type === 'failed'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                    }`}>
-                      {notification.type === 'received' ? 'Received' : notification.type === 'failed' ? 'Failed' : 'Sent'}
-                    </div>
-                  </div>
-                </div>
-              ))
+                  );
+                });
+              })()
             ) : (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
                 No notifications
