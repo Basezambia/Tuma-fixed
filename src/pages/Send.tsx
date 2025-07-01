@@ -839,8 +839,8 @@ const Send = () => {
           setProcessStep('uploading');
           toast.info('Uploading to Arweave...');
           
-          // Upload to Arweave with complete metadata and tags
-          const txId = await arweaveService.uploadFileToArweave(
+          // Upload to Arweave with complete metadata and tags (with cache invalidation)
+          const txId = await arweaveService.uploadFileWithCacheInvalidation(
             payloadBytes,
             completeMetadata, // Use completeMetadata instead of publicMetadata
             (progress) => {

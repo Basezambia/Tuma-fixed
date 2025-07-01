@@ -14,16 +14,18 @@ app.use(express.json());
 
 // Import API handlers
 const getArweavePrice = require('./api/getArweavePrice');
-const createCharge = require('./api/createCharge');
-const chargeStatus = require('./api/chargeStatus');
+const createCharge = require('./api/createcharge');
+const chargeStatus = require('./api/chargestatus');
 const upload = require('./api/upload');
-const getUserStorage = require('./api/getUserStorage');
-const getStoragePackages = require('./api/getStoragePackages');
-const getP2PListings = require('./api/getP2PListings');
-const createP2PListing = require('./api/createP2PListing');
-const purchaseP2PListing = require('./api/purchaseP2PListing');
-const confirmP2PPurchase = require('./api/confirmP2PPurchase');
-const purchaseStorage = require('./api/purchaseStorage');
+
+// Routes that require SUPABASE_SERVICE_ROLE_KEY (temporarily disabled):
+// const getUserStorage = require('./api/getUserStorage');
+// const getStoragePackages = require('./api/getStoragePackages');
+// const getP2PListings = require('./api/getP2PListings');
+// const createP2PListing = require('./api/createP2PListing');
+// const purchaseP2PListing = require('./api/purchaseP2PListing');
+// const confirmP2PPurchase = require('./api/confirmP2PPurchase');
+// const purchaseStorage = require('./api/purchaseStorage');
 
 
 // Set up API routes
@@ -31,13 +33,15 @@ app.get('/api/getArweavePrice', getArweavePrice);
 app.post('/api/createCharge', createCharge);
 app.get('/api/chargeStatus', chargeStatus);
 app.post('/api/upload', upload);
-app.get('/api/getUserStorage', getUserStorage);
-app.get('/api/getStoragePackages', getStoragePackages);
-app.get('/api/getP2PListings', getP2PListings);
-app.post('/api/createP2PListing', createP2PListing);
-app.post('/api/purchaseP2PListing', purchaseP2PListing);
-app.post('/api/confirmP2PPurchase', confirmP2PPurchase);
-app.post('/api/purchaseStorage', purchaseStorage);
+
+// Temporarily disabled routes that require SUPABASE_SERVICE_ROLE_KEY:
+// app.get('/api/getUserStorage', getUserStorage);
+// app.get('/api/getStoragePackages', getStoragePackages);
+// app.get('/api/getP2PListings', getP2PListings);
+// app.post('/api/createP2PListing', createP2PListing);
+// app.post('/api/purchaseP2PListing', purchaseP2PListing);
+// app.post('/api/confirmP2PPurchase', confirmP2PPurchase);
+// app.post('/api/purchaseStorage', purchaseStorage);
 
 
 // Start the server

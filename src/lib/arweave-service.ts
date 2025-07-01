@@ -79,6 +79,17 @@ class ArweaveService {
   private nameCache: Map<string, string | null> = new Map(); // Cache for address -> name resolution
   private cacheExpiry: Map<string, number> = new Map(); // Cache expiry timestamps
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  
+  // File caching for getSentFiles and getReceivedFiles
+  private sentFilesCache: Map<string, StoredFile[]> = new Map();
+  private receivedFilesCache: Map<string, StoredFile[]> = new Map();
+  private filesCacheExpiry: Map<string, number> = new Map();
+  private readonly FILES_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes for files
+  private readonly MAX_CACHE_SIZE = 50; // Maximum number of cached entries
+  
+  // In-flight request tracking to prevent duplicate API calls
+  private pendingSentFilesRequests: Map<string, Promise<StoredFile[]>> = new Map();
+  private pendingReceivedFilesRequests: Map<string, Promise<StoredFile[]>> = new Map();
 
   constructor() {
     this.loadOwnerWallet();
@@ -133,6 +144,25 @@ class ArweaveService {
       // Otherwise use the API endpoint
       return this.apiUploadToArweave(file, metadata, onProgress, customTags);
     }
+  }
+  
+  /**
+   * Upload file and invalidate cache for sender to ensure fresh data
+   */
+  async uploadFileWithCacheInvalidation(file: Uint8Array, metadata: FileMetadata, onProgress?: (pct: number) => void, customTags?: { name: string; value: string }[]): Promise<string> {
+    const txId = await this.uploadFileToArweave(file, metadata, onProgress, customTags);
+    
+    // Invalidate cache for sender to ensure fresh data on next fetch
+    this.invalidateCache(metadata.sender);
+    
+    // Also invalidate cache for all recipients
+    if (metadata.recipients && Array.isArray(metadata.recipients)) {
+      metadata.recipients.forEach(recipient => this.invalidateCache(recipient));
+    } else if (metadata.recipient) {
+      this.invalidateCache(metadata.recipient);
+    }
+    
+    return txId;
   }
   
   /**
@@ -503,41 +533,177 @@ class ArweaveService {
   }
 
   /**
-   * Get all received files for a user address
+   * Get all received files for a user address with caching
    * Uses Arweave GraphQL to find transactions where any Recipient-X == address or ENS/Base name
    * Implements cursor-based pagination to fetch all results (Arweave limits to 100 per query)
    */
   async getReceivedFiles(address: string): Promise<StoredFile[]> {
     if (!address) return [];
+    
+    const normalizedAddress = address.toLowerCase();
+    
+    // Check cache first
+    const cached = this.receivedFilesCache.get(normalizedAddress);
+    const cacheTime = this.filesCacheExpiry.get(normalizedAddress);
+    
+    if (cached && cacheTime && Date.now() < cacheTime) {
+      return cached;
+    }
+    
+    // Check if there's already a pending request for this address
+    const pendingRequest = this.pendingReceivedFilesRequests.get(normalizedAddress);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
+    
+    // Create new request and cache it
+    const request = this.fetchReceivedFilesFromArweave(normalizedAddress);
+    this.pendingReceivedFilesRequests.set(normalizedAddress, request);
+    
+    try {
+      const files = await request;
+      
+      // Cache the result
+      this.receivedFilesCache.set(normalizedAddress, files);
+      this.filesCacheExpiry.set(normalizedAddress, Date.now() + this.FILES_CACHE_DURATION);
+      
+      // Clean up expired cache entries periodically
+      this.cleanupExpiredCache();
+      
+      return files;
+    } finally {
+      // Remove from pending requests
+      this.pendingReceivedFilesRequests.delete(normalizedAddress);
+    }
+  }
+  
+  /**
+   * Internal method to fetch received files from Arweave
+   * @private
+   */
+  private async fetchReceivedFilesFromArweave(address: string): Promise<StoredFile[]> {
     try {
       // Get all possible identifiers for this address (address + ENS/Base names)
       const recipientIdentifiers = await this.getAllRecipientIdentifiers(address);
-      const identifiersList = recipientIdentifiers.map(id => `"${id}"`).join(', ');
       
-      const allFiles: StoredFile[] = [];
-      const seenIds = new Set<string>();
-      
-      // Search for files in all recipient tag positions (0-9) and recipient name tags
+      // Build all possible recipient tag names in one query
+      const recipientTags: string[] = [];
       for (let i = 0; i < 10; i++) {
-        // Search Recipient-X tags
-        const recipientFiles = await this.fetchFilesWithPagination([
-          { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-          { name: `Recipient-${i}`, values: recipientIdentifiers }
-        ]);
+        recipientTags.push(`Recipient-${i}`);
+        recipientTags.push(`Recipient-Name-${i}`);
+      }
+      
+      // Single optimized query that searches all recipient positions at once
+      const allFiles: StoredFile[] = [];
+      let hasNextPage = true;
+      let cursor = null;
+      
+      while (hasNextPage) {
+        // Create OR conditions for all recipient tag positions
+        const recipientConditions = recipientTags.map(tagName => 
+          `{ name: "${tagName}", values: [${recipientIdentifiers.map(id => `"${id}"`).join(', ')}] }`
+        ).join(',\n              ');
         
-        // Search Recipient-Name-X tags
-        const recipientNameFiles = await this.fetchFilesWithPagination([
-          { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-          { name: `Recipient-Name-${i}`, values: recipientIdentifiers }
-        ]);
+        const query = {
+          query: `{
+            transactions(
+              tags: [
+                { name: "App-Name", values: ["TUMA-Document-Exchange"] }
+              ]
+              first: 100${cursor ? `,\n              after: "${cursor}"` : ''}
+            ) {
+              pageInfo {
+                hasNextPage
+              }
+              edges {
+                cursor
+                node {
+                  id
+                  tags {
+                    name
+                    value
+                  }
+                }
+              }
+            }
+          }`
+        };
         
-        // Add unique files
-        [...recipientFiles, ...recipientNameFiles].forEach(file => {
-          if (!seenIds.has(file.id)) {
-            seenIds.add(file.id);
-            allFiles.push(file);
-          }
+        const res = await fetch('https://arweave.net/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(query)
         });
+        
+        const json = await res.json();
+        
+        if (!json.data || !json.data.transactions) {
+          break;
+        }
+        
+        const { edges, pageInfo } = json.data.transactions;
+        hasNextPage = pageInfo.hasNextPage;
+        
+        // Filter results to only include files where user is a recipient
+        const pageFiles = edges
+          .filter((edge: any) => {
+            const tags: Record<string, string> = {};
+            edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
+            
+            // Check if any recipient tag matches our identifiers
+            for (let i = 0; i < 10; i++) {
+              const recipientValue = tags[`Recipient-${i}`] || tags[`Recipient-Name-${i}`];
+              if (recipientValue && recipientIdentifiers.some(id => 
+                id.toLowerCase() === recipientValue.toLowerCase()
+              )) {
+                return true;
+              }
+            }
+            return false;
+          })
+          .map((edge: any) => {
+            const tags: Record<string, string> = {};
+            edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
+            
+            // Extract all recipients from Recipient-X tags
+            const recipients: string[] = [];
+            for (let i = 0; i < 10; i++) {
+              const recipientTag = `Recipient-${i}`;
+              if (tags[recipientTag]) {
+                recipients.push(tags[recipientTag]);
+              }
+            }
+            
+            const metadata: FileMetadata = {
+              name: tags['Document-Name'] || '',
+              type: tags['Document-Type'] || '',
+              size: Number(tags['Document-Size']) || 0,
+              sender: tags['Sender'] || '',
+              recipient: tags['Recipient'] || tags['Recipient-0'] || '',
+              recipients: recipients.length > 0 ? recipients : undefined,
+              timestamp: Number(tags['Timestamp']) || 0,
+              description: tags['Description'],
+              iv: tags['IV'],
+              sha256: tags['sha256'] || tags['SHA256'] || undefined,
+              chargeId: tags['Charge-Id'] || undefined,
+              documentId: tags['Document-Id'] || undefined
+            };
+            
+            return { id: edge.node.id, metadata };
+          });
+        
+        allFiles.push(...pageFiles);
+        
+        // Update cursor for next page
+        if (hasNextPage && edges.length > 0) {
+          cursor = edges[edges.length - 1].cursor;
+        }
+        
+        // Safety break to prevent infinite loops
+        if (allFiles.length > 50000) {
+          console.warn('Reached safety limit of 50,000 files for received files query');
+          break;
+        }
       }
       
       return allFiles;
@@ -652,16 +818,110 @@ class ArweaveService {
   }
 
   /**
-   * Get all sent files for a user address
+   * Clear expired cache entries to prevent memory leaks
+   * @private
+   */
+  private cleanupExpiredCache(): void {
+    const now = Date.now();
+    
+    // Clean up name cache
+    for (const [key, expiry] of this.cacheExpiry.entries()) {
+      if (now > expiry) {
+        this.nameCache.delete(key);
+        this.cacheExpiry.delete(key);
+      }
+    }
+    
+    // Clean up files cache
+    for (const [key, expiry] of this.filesCacheExpiry.entries()) {
+      if (now > expiry) {
+        this.sentFilesCache.delete(key);
+        this.receivedFilesCache.delete(key);
+        this.filesCacheExpiry.delete(key);
+      }
+    }
+    
+    // Limit cache size to prevent memory issues
+    if (this.sentFilesCache.size > this.MAX_CACHE_SIZE) {
+      const oldestKeys = Array.from(this.filesCacheExpiry.entries())
+        .sort(([,a], [,b]) => a - b)
+        .slice(0, this.sentFilesCache.size - this.MAX_CACHE_SIZE)
+        .map(([key]) => key);
+      
+      oldestKeys.forEach(key => {
+        this.sentFilesCache.delete(key);
+        this.receivedFilesCache.delete(key);
+        this.filesCacheExpiry.delete(key);
+      });
+    }
+  }
+  
+  /**
+   * Invalidate cache for a specific address
+   * Useful when new files are uploaded
+   */
+  invalidateCache(address: string): void {
+    const normalizedAddress = address.toLowerCase();
+    this.sentFilesCache.delete(normalizedAddress);
+    this.receivedFilesCache.delete(normalizedAddress);
+    this.filesCacheExpiry.delete(normalizedAddress);
+    this.pendingSentFilesRequests.delete(normalizedAddress);
+    this.pendingReceivedFilesRequests.delete(normalizedAddress);
+  }
+  
+  /**
+   * Get all sent files for a user address with caching
    * Uses Arweave GraphQL to find transactions where Sender == address or ENS/Base name
    * Implements cursor-based pagination to fetch all results (Arweave limits to 100 per query)
    */
   async getSentFiles(address: string): Promise<StoredFile[]> {
     if (!address) return [];
+    
+    const normalizedAddress = address.toLowerCase();
+    
+    // Check cache first
+    const cached = this.sentFilesCache.get(normalizedAddress);
+    const cacheTime = this.filesCacheExpiry.get(normalizedAddress);
+    
+    if (cached && cacheTime && Date.now() < cacheTime) {
+      return cached;
+    }
+    
+    // Check if there's already a pending request for this address
+    const pendingRequest = this.pendingSentFilesRequests.get(normalizedAddress);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
+    
+    // Create new request and cache it
+    const request = this.fetchSentFilesFromArweave(normalizedAddress);
+    this.pendingSentFilesRequests.set(normalizedAddress, request);
+    
+    try {
+      const files = await request;
+      
+      // Cache the result
+      this.sentFilesCache.set(normalizedAddress, files);
+      this.filesCacheExpiry.set(normalizedAddress, Date.now() + this.FILES_CACHE_DURATION);
+      
+      // Clean up expired cache entries periodically
+      this.cleanupExpiredCache();
+      
+      return files;
+    } finally {
+      // Remove from pending requests
+      this.pendingSentFilesRequests.delete(normalizedAddress);
+    }
+  }
+  
+  /**
+   * Internal method to fetch sent files from Arweave
+   * @private
+   */
+  private async fetchSentFilesFromArweave(address: string): Promise<StoredFile[]> {
     try {
       // Get all possible identifiers for this address (address + ENS/Base names)
       const senderIdentifiers = await this.getAllRecipientIdentifiers(address);
-      // Searching for files with sender identifiers
       
       let allFiles: StoredFile[] = [];
       let hasNextPage = true;

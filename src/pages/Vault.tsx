@@ -747,8 +747,8 @@ const Vault = () => {
       fileCount: files.length
     };
 
-    // Upload folder metadata
-    await arweaveService.uploadFileToArweave(
+    // Upload folder metadata (with cache invalidation)
+    await arweaveService.uploadFileWithCacheInvalidation(
       new Uint8Array(0),
       folderMetadata
     );
@@ -803,8 +803,8 @@ const Vault = () => {
         encryptionMethod: 'HKDF-AES-GCM'
       };
 
-      // Upload to Arweave
-      const result = await arweaveService.uploadFileToArweave(encryptedBuffer, metadata);
+      // Upload to Arweave (with cache invalidation)
+      const result = await arweaveService.uploadFileWithCacheInvalidation(encryptedBuffer, metadata);
       
       return result;
     } catch (error) {
@@ -1346,12 +1346,12 @@ const Vault = () => {
                             }}
                           >
                             {/* File Icon */}
-                            <div className="flex-1 flex items-center justify-center p-6">
-                              <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                            <div className="flex-1 flex items-center justify-center p-3">
+                              <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300 min-h-[120px]">
                                 {file.metadata.type === "folder" ? (
-                                  <Folder className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+                                  <Folder className="w-12 h-12 text-blue-600 dark:text-blue-400" />
                                 ) : (
-                                  <File className="w-10 h-10 text-gray-600 dark:text-gray-400" />
+                                  <File className="w-12 h-12 text-gray-600 dark:text-gray-400" />
                                 )}
                               </div>
                             </div>

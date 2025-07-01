@@ -60,21 +60,8 @@ const Documents = () => {
     try {
       setLoading(true);
       setError(null);
-      // Around line 45-50, after fetching files:
       const received = await arweaveService.getReceivedFiles(userAddress?.toLowerCase() || "");
       const sent = await arweaveService.getSentFiles(userAddress?.toLowerCase() || "");
-      
-      // Check for new received files and emit events
-      const previousReceivedIds = receivedDocs.map(doc => doc.id);
-      const newReceivedFiles = received.filter(doc => !previousReceivedIds.includes(doc.id));
-      
-      newReceivedFiles.forEach(file => {
-        // Emit event for new received file
-        const event = new CustomEvent('tuma:newReceivedFile', {
-          detail: { id: file.id, metadata: file.metadata }
-        });
-        window.dispatchEvent(event);
-      });
       
       // Filter out vault files from both received and sent documents
       const filteredReceived = received.filter(file => 
@@ -112,9 +99,11 @@ const Documents = () => {
     }
   };
 
-  // Fetch documents from Arweave
+  // Fetch documents from Arweave only once when userAddress changes
   useEffect(() => {
-    if (userAddress) fetchDocuments();
+    if (userAddress) {
+      fetchDocuments();
+    }
   }, [userAddress]);
 
   // Listen for upload completion events to refresh document counts
@@ -127,6 +116,35 @@ const Documents = () => {
 
     window.addEventListener('uploadComplete', handleUploadComplete);
     return () => window.removeEventListener('uploadComplete', handleUploadComplete);
+  }, []);
+
+  // Listen for background file monitoring events to refresh documents
+  useEffect(() => {
+    const handleNewReceivedFile = () => {
+      if (userAddress) {
+        // Delay refresh to allow Arweave indexing
+        setTimeout(() => {
+          fetchDocuments();
+        }, 2000);
+      }
+    };
+
+    const handleNewSentFile = () => {
+      if (userAddress) {
+        // Delay refresh to allow Arweave indexing
+        setTimeout(() => {
+          fetchDocuments();
+        }, 2000);
+      }
+    };
+
+    window.addEventListener('tuma:newReceivedFile', handleNewReceivedFile);
+    window.addEventListener('tuma:newSentFile', handleNewSentFile);
+    
+    return () => {
+      window.removeEventListener('tuma:newReceivedFile', handleNewReceivedFile);
+      window.removeEventListener('tuma:newSentFile', handleNewSentFile);
+    };
   }, [userAddress]);
 
   // Close dropdown when clicking outside
