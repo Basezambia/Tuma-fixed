@@ -28,8 +28,8 @@ const Send = () => {
   // ...existing state declarations...
   const [uploadTimeoutId, setUploadTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [recipients, setRecipients] = useState<{name: string; address: string; originalInput?: string}[]>([]);
-  const [currentRecipient, setCurrentRecipient] = useState<{name: string; address: string; originalInput?: string}>({name: "", address: ""});
+  const [recipients, setRecipients] = useState<{name: string; address: string; originalInput?: string; resolvedAddress?: string}[]>([]);
+  const [currentRecipient, setCurrentRecipient] = useState<{name: string; address: string; originalInput?: string; resolvedAddress?: string}>({name: "", address: ""});
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [processStep, setProcessStep] = useState<'idle' | 'encrypting' | 'uploading' | 'pending' | 'success'>('idle');
@@ -129,24 +129,40 @@ const Send = () => {
     }
   };
 
+  // Helper function to validate if an address is a valid Ethereum address
+  const isValidEthereumAddress = (address: string): boolean => {
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  };
+
+  // Helper function to check if an address is an ENS/Base name
+  const isENSName = (address: string): boolean => {
+    return address.includes('.eth') || address.includes('.base.eth');
+  };
+
   // Function to handle address input with name resolution
   const handleAddressChange = async (value: string) => {
     // Check if the input looks like an ENS/Base name
     if (value.includes('.eth') || value.includes('.base.eth')) {
-      // For ENS/Base names, don't set the address until we resolve it
-      setCurrentRecipient({...currentRecipient, address: value, originalInput: value}); // Show the name while resolving
+      // For ENS/Base names, show the name while resolving
+      setCurrentRecipient({...currentRecipient, address: value, originalInput: value});
       const resolvedAddress = await resolveNameToAddress(value);
       if (resolvedAddress) {
-        setCurrentRecipient({...currentRecipient, address: resolvedAddress, originalInput: value});
+        // Store the Base name as the primary address, resolved address for encryption
+        setCurrentRecipient({
+          ...currentRecipient, 
+          address: value, // Store the Base name as the primary identifier
+          originalInput: value,
+          resolvedAddress: resolvedAddress // Store resolved address for encryption
+        });
         toast.success(`Resolved ${value} to ${resolvedAddress.slice(0, 6)}...${resolvedAddress.slice(-4)}`);
       } else {
         toast.error(`Could not resolve ${value}. Please check the name or enter a direct address.`);
-        // Keep the original name in case user wants to try again
-        setCurrentRecipient({...currentRecipient, address: value, originalInput: value});
+        // Don't allow unresolved names to be added
+        setCurrentRecipient({...currentRecipient, address: '', originalInput: value});
       }
     } else {
-      // For regular addresses, set immediately
-      setCurrentRecipient({...currentRecipient, address: value});
+      // For regular addresses, set immediately and clear originalInput
+      setCurrentRecipient({...currentRecipient, address: value, originalInput: ''});
     }
   };
   const [showRecipientDialog, setShowRecipientDialog] = useState(false);
@@ -736,8 +752,10 @@ const Send = () => {
         const fileDocId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         
         try {
-          // Get all recipient addresses
-          const recipientAddresses = validRecipients.map(r => r.address.toLowerCase());
+          // Get all recipient addresses - use resolvedAddress for encryption if available (Base names), otherwise use address
+          const recipientAddresses = validRecipients.map(r => 
+            (r.resolvedAddress ? r.resolvedAddress : r.address).toLowerCase()
+          );
           
           // Encrypt file for multiple recipients
           const buffer = await file.arrayBuffer();
@@ -761,7 +779,8 @@ const Send = () => {
             sender: senderAddress?.toLowerCase() || '',
             recipients: validRecipients.map(r => ({
               name: r.name,
-              address: r.address.toLowerCase()
+              address: r.address.toLowerCase(), // Store Base name as primary identifier
+              resolvedAddress: r.resolvedAddress?.toLowerCase() // Store resolved address for validation
             })),
             description: message || undefined,
             sha256,
@@ -772,10 +791,12 @@ const Send = () => {
           // Encrypt private metadata for each recipient
           const encryptedMetadataForRecipients: { [address: string]: string } = {};
           for (const recipient of validRecipients) {
-            encryptedMetadataForRecipients[recipient.address.toLowerCase()] = await encryptMetadata(
+            // Use resolvedAddress for encryption key if available (Base names), otherwise use address
+            const encryptionAddress = (recipient.resolvedAddress ? recipient.resolvedAddress : recipient.address).toLowerCase();
+            encryptedMetadataForRecipients[encryptionAddress] = await encryptMetadata(
               privateMetadata,
               senderAddress?.toLowerCase() || '',
-              recipient.address.toLowerCase(),
+              encryptionAddress,
               fileDocId
             );
           }
@@ -824,12 +845,17 @@ const Send = () => {
             { name: 'Timestamp', value: Date.now().toString() },
           ];
           
-          // Add recipient tags - store BOTH original input AND resolved address
+          // Add recipient tags - store Base name as primary identifier and resolved address for validation
           validRecipients.forEach((recipient, index) => {
-            // Store the resolved address
+            // Store the primary identifier (Base name or address)
             tags.push({ name: `Recipient-${index}`, value: recipient.address.toLowerCase() });
             
-            // If the original input was an ENS/Base name, also store it
+            // If this is a Base name with a resolved address, store the resolved address for validation
+            if (recipient.resolvedAddress) {
+              tags.push({ name: `Recipient-Resolved-${index}`, value: recipient.resolvedAddress.toLowerCase() });
+            }
+            
+            // Also store original input for backward compatibility
             if (recipient.originalInput && (recipient.originalInput.includes('.eth') || recipient.originalInput.includes('.base.eth'))) {
               tags.push({ name: `Recipient-Name-${index}`, value: recipient.originalInput.toLowerCase() });
             }
@@ -1040,7 +1066,7 @@ const Send = () => {
     );
   };
   // State for recent recipients
-  const [recentRecipients, setRecentRecipients] = useState<{ name: string; address: string; lastSent?: number; originalInput?: string }[]>([]);
+  const [recentRecipients, setRecentRecipients] = useState<{ name: string; address: string; lastSent?: number; originalInput?: string; resolvedAddress?: string }[]>([]);
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
   const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
 
@@ -1048,7 +1074,7 @@ const Send = () => {
   const RECENT_RECIPIENTS_KEY = 'recentRecipients';
 
   function saveRecentRecipient(recipient: { name: string; address: string; originalInput?: string }) {
-    let existing: { name: string; address: string; lastSent?: number; originalInput?: string }[] = [];
+    let existing: { name: string; address: string; lastSent?: number; originalInput?: string; resolvedAddress?: string }[] = [];
     try {
       const raw = localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]';
       existing = JSON.parse(raw);
@@ -1062,7 +1088,7 @@ const Send = () => {
     localStorage.setItem(RECENT_RECIPIENTS_KEY, JSON.stringify(updated));
   }
 
-  function loadRecentRecipients(): { name: string; address: string; lastSent?: number; originalInput?: string }[] {
+  function loadRecentRecipients(): { name: string; address: string; lastSent?: number; originalInput?: string; resolvedAddress?: string }[] {
     return JSON.parse(localStorage.getItem(RECENT_RECIPIENTS_KEY) || '[]');
   }
 
@@ -1090,7 +1116,7 @@ const Send = () => {
     arweaveService.getSentFiles(senderAddress)
       .then(files => {
         // Extract unique recipients from sent files
-        const recipientsFromSentFiles = files.reduce((acc: { name: string; address: string; lastSent?: number; originalInput?: string }[], file) => {
+        const recipientsFromSentFiles = files.reduce((acc: { name: string; address: string; lastSent?: number; originalInput?: string; resolvedAddress?: string }[], file) => {
           const recipientAddress = file.metadata.recipient?.toLowerCase();
           if (!recipientAddress) return acc;
           
@@ -1443,8 +1469,18 @@ const Send = () => {
                                   if (currentRecipient.name && !currentRecipient.address) {
                                     document.getElementById('recipient-address')?.focus();
                                   } else if (currentRecipient.name && currentRecipient.address) {
+                                    // For Base names, check if we have a resolved address
+                                    if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
+                                      toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
+                                      return;
+                                    }
+                                    // For regular addresses, validate the address format
+                                    if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
+                                      toast.error('Please enter a valid Ethereum address.');
+                                      return;
+                                    }
                                     setRecipients([...recipients, currentRecipient]);
-                                    setCurrentRecipient({name: "", address: "", originalInput: ""});
+                                    setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
                                     saveRecentRecipient(currentRecipient);
                                   }
                                 }
@@ -1478,8 +1514,18 @@ const Send = () => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
                                   if (currentRecipient.name && currentRecipient.address) {
+                                    // For Base names, check if we have a resolved address
+                                    if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
+                                      toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
+                                      return;
+                                    }
+                                    // For regular addresses, validate the address format
+                                    if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
+                                      toast.error('Please enter a valid Ethereum address.');
+                                      return;
+                                    }
                                     setRecipients([...recipients, currentRecipient]);
-                                    setCurrentRecipient({name: "", address: "", originalInput: ""});
+                                    setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
                                     saveRecentRecipient(currentRecipient);
                                     // Focus back to name field for next recipient
                                     document.getElementById('recipient-name')?.focus();
@@ -1553,7 +1599,8 @@ const Send = () => {
                             setRecipients([...recipients, {
                               name: recipient.name,
                               address: recipient.address,
-                              originalInput: recipient.originalInput
+                              originalInput: recipient.originalInput,
+                              resolvedAddress: recipient.resolvedAddress
                             }]);
                           }
 
@@ -1924,8 +1971,18 @@ const Send = () => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       if (currentRecipient.name && currentRecipient.address) {
+                        // For Base names, check if we have a resolved address
+                        if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
+                          toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
+                          return;
+                        }
+                        // For regular addresses, validate the address format
+                        if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
+                          toast.error('Please enter a valid Ethereum address.');
+                          return;
+                        }
                         setRecipients([...recipients, currentRecipient]);
-                        setCurrentRecipient({name: "", address: "", originalInput: ""});
+                        setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
                         saveRecentRecipient(currentRecipient);
                         setShowRecipientDialog(false);
                       }
@@ -1957,8 +2014,18 @@ const Send = () => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       if (currentRecipient.name && currentRecipient.address) {
+                        // For Base names, check if we have a resolved address
+                        if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
+                          toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
+                          return;
+                        }
+                        // For regular addresses, validate the address format
+                        if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
+                          toast.error('Please enter a valid Ethereum address.');
+                          return;
+                        }
                         setRecipients([...recipients, currentRecipient]);
-                        setCurrentRecipient({name: "", address: "", originalInput: ""});
+                        setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
                         saveRecentRecipient(currentRecipient);
                         setShowRecipientDialog(false);
                       }
@@ -1996,8 +2063,18 @@ const Send = () => {
               type="button"
               onClick={() => {
                 if (currentRecipient.name && currentRecipient.address) {
+                  // For Base names, check if we have a resolved address
+                  if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
+                    toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
+                    return;
+                  }
+                  // For regular addresses, validate the address format
+                  if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
+                    toast.error('Please enter a valid Ethereum address.');
+                    return;
+                  }
                   setRecipients([...recipients, currentRecipient]);
-                  setCurrentRecipient({name: "", address: "", originalInput: ""});
+                  setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
                   saveRecentRecipient(currentRecipient);
                   setShowRecipientDialog(false);
                 }

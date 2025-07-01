@@ -228,10 +228,17 @@ const Documents = () => {
       
       // Check 2: Recipients array from metadata (new multi-recipient format)
       if (!isRecipient && metadata.recipients && Array.isArray(metadata.recipients)) {
-        isRecipient = metadata.recipients.some((r: any) => 
-          typeof r === 'string' ? r.toLowerCase() === userAddress.toLowerCase() : 
-          r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress.toLowerCase()
-        );
+        isRecipient = metadata.recipients.some((r: any) => {
+          if (typeof r === 'string') {
+            return r.toLowerCase() === userAddress.toLowerCase();
+          }
+          if (r && typeof r === 'object') {
+            // Check both primary address (Base name) and resolved address
+            return (r.address && r.address.toLowerCase() === userAddress.toLowerCase()) ||
+                   (r.resolvedAddress && r.resolvedAddress.toLowerCase() === userAddress.toLowerCase());
+          }
+          return false;
+        });
       }
       
       // Check 3: Try to parse the data to check for encrypted metadata keys (most reliable for new format)
@@ -351,6 +358,34 @@ const Documents = () => {
             userAddress.toLowerCase(),
             metadata.documentId || docId
           );
+          
+          // Validate Base names if present
+          if (decryptedMetadata.recipients) {
+            for (const recipient of decryptedMetadata.recipients) {
+              if (recipient.resolvedAddress && recipient.address && 
+                  (recipient.address.includes('.eth') || recipient.address.includes('.base.eth'))) {
+                // This is a Base name, validate it still resolves to the same address
+                try {
+                  const { getAddress } = await import('@coinbase/onchainkit/identity');
+                  const currentResolvedAddress = await getAddress({
+                    name: recipient.address,
+                    chain: base
+                  });
+                  
+                  if (currentResolvedAddress.toLowerCase() !== recipient.resolvedAddress.toLowerCase()) {
+                    // Base name has been transferred, deny access
+                    throw new Error(`Base name ${recipient.address} has been transferred and no longer resolves to the original address. Access denied.`);
+                  }
+                } catch (error) {
+                  if (error instanceof Error && error.message.includes('transferred')) {
+                    throw error; // Re-throw our custom error
+                  }
+                  // If resolution fails, deny access for security
+                  throw new Error(`Could not validate Base name ${recipient.address}. Access denied for security.`);
+                }
+              }
+            }
+          }
           
           // Use the new multi-recipient decryption
           decrypted = await decryptFileForMultipleRecipients(
