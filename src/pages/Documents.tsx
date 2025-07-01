@@ -218,13 +218,15 @@ const Documents = () => {
       
       const isSender = typeof sender === 'string' && typeof userAddress === 'string' && userAddress.toLowerCase() === sender.toLowerCase();
       
-      // Check if user is among recipients (handle both single recipient and multiple recipients)
+      // Enhanced recipient permission checking with multiple fallbacks
       let isRecipient = false;
+      
+      // Check 1: Direct recipient parameter (legacy single recipient)
       if (typeof recipient === 'string' && typeof userAddress === 'string') {
         isRecipient = userAddress.toLowerCase() === recipient.toLowerCase();
       }
       
-      // Also check if user is in the recipients array from metadata
+      // Check 2: Recipients array from metadata (new multi-recipient format)
       if (!isRecipient && metadata.recipients && Array.isArray(metadata.recipients)) {
         isRecipient = metadata.recipients.some((r: any) => 
           typeof r === 'string' ? r.toLowerCase() === userAddress.toLowerCase() : 
@@ -232,7 +234,48 @@ const Documents = () => {
         );
       }
       
+      // Check 3: Try to parse the data to check for encrypted metadata keys (most reliable for new format)
+      if (!isRecipient) {
+        try {
+          let dataString: string;
+          if (data instanceof Uint8Array) {
+            dataString = new TextDecoder().decode(data);
+          } else if (typeof data === 'string') {
+            dataString = data;
+          } else {
+            dataString = '';
+          }
+          
+          if (dataString) {
+            const payload = JSON.parse(dataString);
+            if (payload.metadata && typeof payload.metadata === 'object') {
+              // Check if user has encrypted metadata (indicates they are a recipient)
+              const userKey = userAddress.toLowerCase();
+              const hasUserMetadata = payload.metadata[userKey] || 
+                                   payload.metadata[userAddress] || 
+                                   Object.keys(payload.metadata).some(key => 
+                                     key.toLowerCase() === userAddress.toLowerCase()
+                                   );
+              if (hasUserMetadata) {
+                isRecipient = true;
+              }
+            }
+          }
+        } catch (parseError) {
+          // Not JSON format, continue with other checks
+        }
+      }
+      
+      // Only throw permission error if user is neither sender nor recipient
       if (!isSender && !isRecipient) {
+        console.log('Permission check failed:', {
+          userAddress: userAddress.toLowerCase(),
+          sender: sender.toLowerCase(),
+          recipient: recipient?.toLowerCase(),
+          metadataRecipients: metadata.recipients,
+          isSender,
+          isRecipient
+        });
         throw new Error('You do not have permission to decrypt this file');
       }
       
@@ -256,29 +299,50 @@ const Documents = () => {
           // New multi-recipient format
           const userKey = userAddress.toLowerCase();
           
-          // Try to find the user's metadata with flexible key matching
-          let userMetadata = payload.metadata[userKey];
+          // Enhanced metadata key lookup with multiple fallback strategies
+          let userMetadata = null;
+          let foundKey = null;
           
-          // If not found, try other variations
-          if (!userMetadata) {
-            // Try original case
-            userMetadata = payload.metadata[userAddress];
+          // Strategy 1: Direct lowercase match
+          if (payload.metadata[userKey]) {
+            userMetadata = payload.metadata[userKey];
+            foundKey = userKey;
           }
           
+          // Strategy 2: Original case match
+          if (!userMetadata && payload.metadata[userAddress]) {
+            userMetadata = payload.metadata[userAddress];
+            foundKey = userAddress;
+          }
+          
+          // Strategy 3: Case-insensitive search through all keys
           if (!userMetadata) {
-            // Try to find any key that matches (case-insensitive)
             const metadataKeys = Object.keys(payload.metadata);
-            const matchingKey = metadataKeys.find(key => 
+            foundKey = metadataKeys.find(key => 
               key.toLowerCase() === userAddress.toLowerCase()
             );
-            if (matchingKey) {
-              userMetadata = payload.metadata[matchingKey];
+            if (foundKey) {
+              userMetadata = payload.metadata[foundKey];
+            }
+          }
+          
+          // Strategy 4: Check if sender address matches (for files sent to self)
+          if (!userMetadata && sender && userAddress.toLowerCase() === sender.toLowerCase()) {
+            const senderKey = sender.toLowerCase();
+            if (payload.metadata[senderKey]) {
+              userMetadata = payload.metadata[senderKey];
+              foundKey = senderKey;
             }
           }
           
           if (!userMetadata) {
-            throw new Error('No encrypted metadata found for this user. You may not have permission to decrypt this file.');
+            console.error('Available metadata keys:', Object.keys(payload.metadata));
+            console.error('Looking for user:', userAddress);
+            console.error('Sender:', sender);
+            throw new Error(`No encrypted metadata found for user ${userAddress}. Available keys: ${Object.keys(payload.metadata).join(', ')}`);
           }
+          
+          console.log(`Found metadata for user ${userAddress} using key: ${foundKey}`);
           
           // Decrypt metadata to get recipient keys
           const decryptedMetadata = await decryptMetadata(

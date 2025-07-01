@@ -184,30 +184,50 @@ export async function decryptFileForMultipleRecipients(
 ): Promise<Uint8Array> {
   const userKey = userAddress.toLowerCase();
   
-  // Try to find the user's key with flexible matching
-  let userKeyData = recipientKeys[userKey];
+  // Enhanced key lookup with multiple fallback strategies
+  let userKeyData = null;
+  let foundKey = null;
   
-  if (!userKeyData) {
-    // Try original case
-    userKeyData = recipientKeys[userAddress];
+  // Strategy 1: Direct lowercase match
+  if (recipientKeys[userKey]) {
+    userKeyData = recipientKeys[userKey];
+    foundKey = userKey;
   }
   
+  // Strategy 2: Original case match
+  if (!userKeyData && recipientKeys[userAddress]) {
+    userKeyData = recipientKeys[userAddress];
+    foundKey = userAddress;
+  }
+  
+  // Strategy 3: Case-insensitive search through all keys
   if (!userKeyData) {
-    // Try to find any key that matches (case-insensitive)
     const availableKeys = Object.keys(recipientKeys);
-    const matchingKey = availableKeys.find(key => 
+    foundKey = availableKeys.find(key => 
       key.toLowerCase() === userAddress.toLowerCase()
     );
-    if (matchingKey) {
-      userKeyData = recipientKeys[matchingKey];
+    if (foundKey) {
+      userKeyData = recipientKeys[foundKey];
+    }
+  }
+  
+  // Strategy 4: Check if sender address matches (for files sent to self)
+  if (!userKeyData && senderAddress && userAddress.toLowerCase() === senderAddress.toLowerCase()) {
+    const senderKey = senderAddress.toLowerCase();
+    if (recipientKeys[senderKey]) {
+      userKeyData = recipientKeys[senderKey];
+      foundKey = senderKey;
     }
   }
   
   if (!userKeyData) {
     console.error('Available recipient keys:', Object.keys(recipientKeys));
     console.error('Looking for user:', userAddress);
+    console.error('Sender:', senderAddress);
     throw new Error(`No decryption key found for user ${userAddress}. Available keys: ${Object.keys(recipientKeys).join(', ')}`);
   }
+  
+  console.log(`Found decryption key for user ${userAddress} using key: ${foundKey}`);
   
   // Decrypt the master key
   const keyData = base64ToUint8Array(userKeyData);
@@ -216,7 +236,7 @@ export async function decryptFileForMultipleRecipients(
   
   const keyEncryptionKey = await deriveSymmetricKeyHKDF(
     senderAddress,
-    userAddress,
+    foundKey || userAddress, // Use the key that was actually found
     documentId
   );
   
