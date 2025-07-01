@@ -348,7 +348,7 @@ const Documents = () => {
           const decryptedMetadata = await decryptMetadata(
             userMetadata,
             sender.toLowerCase(),
-            userAddress.toLowerCase(),
+            foundKey || userAddress.toLowerCase(), // Use the key that was actually found
             metadata.documentId || docId
           );
           
@@ -358,7 +358,7 @@ const Documents = () => {
             payload.iv,
             decryptedMetadata.recipientKeys,
             sender.toLowerCase(),
-            userAddress.toLowerCase(),
+            foundKey || userAddress.toLowerCase(), // Use the key that was actually found
             metadata.documentId || docId
           );
           
