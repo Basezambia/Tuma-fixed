@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" 
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+     xmlns:dc="http://purl.org/dc/elements/1.1/"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+     xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+     xmlns:media="http://search.yahoo.com/mrss/">
+
+<channel>
+    <title>TUMA Blog - Secure Blockchain File Sharing News</title>
+    <atom:link href="https://tuma.app/rss.xml" rel="self" type="application/rss+xml" />
+    <link>https://tuma.app/blog</link>
+    <description>Latest news, updates, and insights about secure blockchain file sharing, Web3 technology, and decentralized storage solutions from TUMA.</description>
+    <lastBuildDate>Thu, 19 Dec 2024 12:00:00 +0000</lastBuildDate>
+    <language>en-US</language>
+    <sy:updatePeriod>weekly</sy:updatePeriod>
+    <sy:updateFrequency>1</sy:updateFrequency>
+    <generator>TUMA RSS Generator</generator>
+    <managingEditor>blog@tuma.app (TUMA Team)</managingEditor>
+    <webMaster>webmaster@tuma.app (TUMA Webmaster)</webMaster>
+    <copyright>Copyright 2024 TUMA. All rights reserved.</copyright>
+    <category>Technology</category>
+    <category>Blockchain</category>
+    <category>Security</category>
+    <category>Web3</category>
+    <ttl>1440</ttl>
+    <image>
+        <url>https://tuma.app/tuma-rss-logo.png</url>
+        <title>TUMA Blog</title>
+        <link>https://tuma.app/blog</link>
+        <width>144</width>
+        <height>144</height>
+        <description>TUMA - Secure Blockchain File Sharing Platform</description>
+    </image>
+
+    <item>
+        <title>Introducing TUMA: The Future of Secure File Sharing</title>
+        <link>https://tuma.app/blog/introducing-tuma-secure-file-sharing</link>
+        <description><![CDATA[Discover how TUMA revolutionizes file sharing with blockchain technology, military-grade encryption, and permanent Arweave storage. Learn about our innovative approach to secure document exchange.]]></description>
+        <content:encoded><![CDATA[
+            <p>TUMA represents a paradigm shift in how we think about file sharing and data security. Built on cutting-edge blockchain technology, our platform offers unprecedented security and permanence for your most important documents.</p>
+            
+            <h2>Key Features</h2>
+            <ul>
+                <li>Military-grade end-to-end encryption</li>
+                <li>Permanent storage on Arweave blockchain</li>
+                <li>Web3 wallet integration</li>
+                <li>One-time payment model</li>
+                <li>Zero-knowledge architecture</li>
+            </ul>
+            
+            <p>Join the revolution in secure file sharing today.</p>
+        ]]></content:encoded>
+        <pubDate>Thu, 19 Dec 2024 10:00:00 +0000</pubDate>
+        <guid isPermaLink="true">https://tuma.app/blog/introducing-tuma-secure-file-sharing</guid>
+        <dc:creator>TUMA Team</dc:creator>
+        <category>Announcement</category>
+        <category>Blockchain</category>
+        <category>Security</category>
+        <media:content url="https://tuma.app/blog/images/tuma-introduction.jpg" type="image/jpeg" medium="image">
+            <media:title>TUMA Platform Introduction</media:title>
+            <media:description>Overview of TUMA's secure file sharing platform</media:description>
+        </media:content>
+    </item>
+
+    <item>
+        <title>Understanding Arweave: The Backbone of Permanent Storage</title>
+        <link>https://tuma.app/blog/understanding-arweave-permanent-storage</link>
+        <description><![CDATA[Deep dive into Arweave technology and how it enables truly permanent, decentralized storage for your files. Learn why one-time payments can secure your data forever.]]></description>
+        <content:encoded><![CDATA[
+            <p>Arweave represents a breakthrough in data storage technology, offering permanent, immutable storage that lasts for centuries. Here's how it works and why it's perfect for secure file sharing.</p>
+            
+            <h2>The Arweave Advantage</h2>
+            <ul>
+                <li>Permanent data storage (200+ years)</li>
+                <li>Decentralized network</li>
+                <li>One-time payment model</li>
+                <li>Cryptographic verification</li>
+                <li>Censorship resistance</li>
+            </ul>
+        ]]></content:encoded>
+        <pubDate>Wed, 18 Dec 2024 14:30:00 +0000</pubDate>
+        <guid isPermaLink="true">https://tuma.app/blog/understanding-arweave-permanent-storage</guid>
+        <dc:creator>TUMA Technical Team</dc:creator>
+        <category>Technology</category>
+        <category>Arweave</category>
+        <category>Education</category>
+    </item>
+
+    <item>
+        <title>Web3 Wallets and Secure File Sharing: A Perfect Match</title>
+        <link>https://tuma.app/blog/web3-wallets-secure-file-sharing</link>
+        <description><![CDATA[Explore how Web3 wallets enable truly decentralized, secure file sharing without the need for traditional accounts or personal information.]]></description>
+        <content:encoded><![CDATA[
+            <p>Web3 wallets are revolutionizing how we interact with decentralized applications. In the context of file sharing, they provide unparalleled security and privacy.</p>
+            
+            <h2>Benefits of Wallet-Based File Sharing</h2>
+            <ul>
+                <li>No personal information required</li>
+                <li>Cryptographic identity verification</li>
+                <li>Direct peer-to-peer transactions</li>
+                <li>Enhanced privacy protection</li>
+                <li>Global accessibility</li>
+            </ul>
+        ]]></content:encoded>
+        <pubDate>Tue, 17 Dec 2024 09:15:00 +0000</pubDate>
+        <guid isPermaLink="true">https://tuma.app/blog/web3-wallets-secure-file-sharing</guid>
+        <dc:creator>TUMA Security Team</dc:creator>
+        <category>Web3</category>
+        <category>Security</category>
+        <category>Wallets</category>
+    </item>
+
+    <item>
+        <title>Enterprise Security: Why Businesses Choose TUMA</title>
+        <link>https://tuma.app/blog/enterprise-security-businesses-choose-tuma</link>
+        <description><![CDATA[Learn why enterprises are adopting TUMA for secure document exchange, compliance requirements, and data protection in regulated industries.]]></description>
+        <content:encoded><![CDATA[
+            <p>Enterprise security requirements are more stringent than ever. TUMA provides the robust, compliant solution that businesses need for secure document exchange.</p>
+            
+            <h2>Enterprise Benefits</h2>
+            <ul>
+                <li>HIPAA and SOX compliance ready</li>
+                <li>Audit trail and immutable records</li>
+                <li>Advanced access controls</li>
+                <li>Integration capabilities</li>
+                <li>24/7 enterprise support</li>
+            </ul>
+        ]]></content:encoded>
+        <pubDate>Mon, 16 Dec 2024 11:45:00 +0000</pubDate>
+        <guid isPermaLink="true">https://tuma.app/blog/enterprise-security-businesses-choose-tuma</guid>
+        <dc:creator>TUMA Enterprise Team</dc:creator>
+        <category>Enterprise</category>
+        <category>Compliance</category>
+        <category>Business</category>
+    </item>
+
+</channel>
+</rss>

@@ -7,43 +7,43 @@ const About = () => {
       <Header />
       
       {/* Enhanced Hero Section */}
-      <section className="relative pt-40 pb-40 overflow-hidden">
+      <section className="relative pt-24 sm:pt-32 lg:pt-40 pb-24 sm:pb-32 lg:pb-40 overflow-hidden">
         {/* Animated Background */}
         <div className="absolute inset-0" style={{backgroundImage: 'url("/gray-background.png")', backgroundSize: 'cover', backgroundPosition: 'center'}}>
           <div className="absolute inset-0 bg-black/20"></div>
         </div>
         
-        <div className="relative max-w-7xl mx-auto px-6">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center">
 
             
             {/* Main Title */}
-            <h1 className="text-6xl md:text-8xl font-bold mb-8 text-black">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-bold mb-6 sm:mb-8 text-black">
               About <span className="text-teal-700">Tuma</span>
             </h1>
             
             {/* Subtitle */}
-            <div className="text-xl md:text-2xl text-black max-w-3xl mx-auto leading-relaxed mb-12 font-light">
+            <div className="text-base sm:text-lg md:text-xl lg:text-2xl text-black max-w-3xl mx-auto leading-relaxed mb-8 sm:mb-12 font-light px-4">
               <p className="text-black">Permanent, secure, decentralized storage solutions for the modern world.</p>
             </div>
             
             {/* Key Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
-              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-2xl p-6 hover:bg-gray-200/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-teal-700 mb-2">∞</div>
-                <div className="text-gray-700 text-sm font-medium">Permanent</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 max-w-4xl mx-auto px-4">
+              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 hover:bg-gray-200/30 transition-all duration-300">
+                <div className="text-2xl sm:text-3xl font-bold text-teal-700 mb-1 sm:mb-2">∞</div>
+                <div className="text-gray-700 text-xs sm:text-sm font-medium">Permanent</div>
               </div>
-              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-2xl p-6 hover:bg-gray-200/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-teal-700 mb-2">256</div>
-                <div className="text-gray-700 text-sm font-medium">Encrypted</div>
+              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 hover:bg-gray-200/30 transition-all duration-300">
+                <div className="text-2xl sm:text-3xl font-bold text-teal-700 mb-1 sm:mb-2">256</div>
+                <div className="text-gray-700 text-xs sm:text-sm font-medium">Encrypted</div>
               </div>
-              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-2xl p-6 hover:bg-gray-200/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-teal-700 mb-2">0</div>
-                <div className="text-gray-700 text-sm font-medium">Monthly Fees</div>
+              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 hover:bg-gray-200/30 transition-all duration-300">
+                <div className="text-2xl sm:text-3xl font-bold text-teal-700 mb-1 sm:mb-2">0</div>
+                <div className="text-gray-700 text-xs sm:text-sm font-medium">Monthly Fees</div>
               </div>
-              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-2xl p-6 hover:bg-gray-200/30 transition-all duration-300">
-                <div className="text-3xl font-bold text-teal-700 mb-2">24/7</div>
-                <div className="text-gray-700 text-sm font-medium">Access</div>
+              <div className="bg-gray-200/20 backdrop-blur-md border border-gray-300/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 hover:bg-gray-200/30 transition-all duration-300">
+                <div className="text-2xl sm:text-3xl font-bold text-teal-700 mb-1 sm:mb-2">24/7</div>
+                <div className="text-gray-700 text-xs sm:text-sm font-medium">Access</div>
               </div>
             </div>
           </div>
@@ -58,50 +58,50 @@ const About = () => {
       </section>
 
       {/* What We Do Section */}
-      <section className="py-20 bg-white dark:bg-gray-800">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+      <section className="py-12 sm:py-16 lg:py-20 bg-white dark:bg-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
               What We Do
             </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto px-4">
               Tuma provides a revolutionary file sharing platform that combines the security of blockchain technology with the simplicity of modern web applications.
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-gray-50 dark:bg-gray-700 p-8 rounded-xl">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mb-6">
-                <ShieldCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            <div className="bg-gray-50 dark:bg-gray-700 p-6 sm:p-8 rounded-xl">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
                 Secure File Storage
               </h3>
-              <p className="text-gray-600 dark:text-gray-300">
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
                 Your files are encrypted end-to-end and stored permanently on the Arweave blockchain, ensuring they can never be lost or compromised.
               </p>
             </div>
             
-            <div className="bg-gray-50 dark:bg-gray-700 p-8 rounded-xl">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mb-6">
-                <Network className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            <div className="bg-gray-50 dark:bg-gray-700 p-6 sm:p-8 rounded-xl">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <Network className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
                 Global Accessibility
               </h3>
-              <p className="text-gray-600 dark:text-gray-300">
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
                 Share files with anyone, anywhere in the world. Recipients don't need accounts or special software to access your shared content.
               </p>
             </div>
             
-            <div className="bg-gray-50 dark:bg-gray-700 p-8 rounded-xl">
-              <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mb-6">
-                <Bolt className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            <div className="bg-gray-50 dark:bg-gray-700 p-6 sm:p-8 rounded-xl">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
+                <Bolt className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
                 One-Time Payment
               </h3>
-              <p className="text-gray-600 dark:text-gray-300">
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
                 Pay once and store forever. No monthly subscriptions, no hidden fees. Your files remain accessible for generations.
               </p>
             </div>
@@ -110,17 +110,17 @@ const About = () => {
       </section>
 
       {/* Our Mission Section */}
-      <section className="py-20 bg-gray-100 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
+      <section className="py-12 sm:py-16 lg:py-20 bg-gray-100 dark:bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
                 Our Mission
               </h2>
-              <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
+              <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 mb-4 sm:mb-6">
                 At Tuma, we believe that file sharing should be simple, secure, and permanent. We're building the future of digital storage where your important documents, memories, and creative work are preserved forever without the worry of data loss or recurring costs.
               </p>
-              <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
+              <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 mb-6 sm:mb-8">
                 Our platform leverages cutting-edge blockchain technology to ensure that once your files are stored, they become part of an immutable, decentralized network that will outlast any single company or service.
               </p>
               <div className="flex items-center gap-4">

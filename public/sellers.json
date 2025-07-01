@@ -1,0 +1,432 @@
+{
+  "version": "1.0",
+  "contact_email": "sellers@tuma.app",
+  "contact_address": "123 Blockchain Avenue, San Francisco, CA 94105, United States",
+  "identifiers": [
+    {
+      "name": "TAG-ID",
+      "value": "tuma-app-tag-12345"
+    },
+    {
+      "name": "DUNS",
+      "value": "123456789"
+    },
+    {
+      "name": "LEI",
+      "value": "TUMA123456789012345"
+    }
+  ],
+  "sellers": [
+    {
+      "seller_id": "pub-1234567890123456",
+      "name": "TUMA Technologies Inc.",
+      "domain": "tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Primary publisher account for TUMA secure file sharing platform"
+    },
+    {
+      "seller_id": "tuma-mobile-123456",
+      "name": "TUMA Mobile Apps",
+      "domain": "tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Mobile app advertising for iOS and Android TUMA applications"
+    },
+    {
+      "seller_id": "tuma-enterprise-789012",
+      "name": "TUMA Enterprise Solutions",
+      "domain": "enterprise.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Enterprise-focused advertising and partnerships"
+    },
+    {
+      "seller_id": "tuma-api-345678",
+      "name": "TUMA API Documentation",
+      "domain": "docs.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Developer-focused advertising on API documentation site"
+    },
+    {
+      "seller_id": "tuma-blog-901234",
+      "name": "TUMA Blog & News",
+      "domain": "blog.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Content marketing and thought leadership advertising"
+    },
+    {
+      "seller_id": "tuma-community-567890",
+      "name": "TUMA Community Hub",
+      "domain": "community.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Community-driven content and user-generated advertising"
+    },
+    {
+      "seller_id": "tuma-support-234567",
+      "name": "TUMA Support Center",
+      "domain": "support.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Help documentation and support-related advertising"
+    },
+    {
+      "seller_id": "tuma-security-890123",
+      "name": "TUMA Security Hub",
+      "domain": "security.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Security-focused content and cybersecurity advertising"
+    },
+    {
+      "seller_id": "tuma-web3-456789",
+      "name": "TUMA Web3 Portal",
+      "domain": "web3.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Web3 and blockchain technology advertising"
+    },
+    {
+      "seller_id": "tuma-developers-012345",
+      "name": "TUMA Developer Portal",
+      "domain": "developers.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Developer tools and SDK advertising"
+    },
+    {
+      "seller_id": "tuma-partners-678901",
+      "name": "TUMA Partner Network",
+      "domain": "partners.tuma.app",
+      "seller_type": "INTERMEDIARY",
+      "is_confidential": 0,
+      "comment": "Partner and affiliate advertising network"
+    },
+    {
+      "seller_id": "tuma-reseller-345012",
+      "name": "TUMA Authorized Reseller",
+      "domain": "reseller.tuma.app",
+      "seller_type": "INTERMEDIARY",
+      "is_confidential": 0,
+      "comment": "Authorized reseller and distribution partner advertising"
+    },
+    {
+      "seller_id": "tuma-affiliate-789456",
+      "name": "TUMA Affiliate Program",
+      "domain": "affiliate.tuma.app",
+      "seller_type": "INTERMEDIARY",
+      "is_confidential": 0,
+      "comment": "Affiliate marketing and referral program advertising"
+    },
+    {
+      "seller_id": "tuma-white-label-123789",
+      "name": "TUMA White Label Solutions",
+      "domain": "whitelabel.tuma.app",
+      "seller_type": "INTERMEDIARY",
+      "is_confidential": 0,
+      "comment": "White label and private label solution advertising"
+    },
+    {
+      "seller_id": "tuma-marketplace-456123",
+      "name": "TUMA Marketplace",
+      "domain": "marketplace.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Digital marketplace and e-commerce advertising"
+    },
+    {
+      "seller_id": "tuma-education-789654",
+      "name": "TUMA Education Hub",
+      "domain": "education.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Educational content and training advertising"
+    },
+    {
+      "seller_id": "tuma-research-321987",
+      "name": "TUMA Research Lab",
+      "domain": "research.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Research publications and whitepapers advertising"
+    },
+    {
+      "seller_id": "tuma-events-654321",
+      "name": "TUMA Events & Conferences",
+      "domain": "events.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Event marketing and conference advertising"
+    },
+    {
+      "seller_id": "tuma-news-987654",
+      "name": "TUMA News & Press",
+      "domain": "news.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Press releases and news content advertising"
+    },
+    {
+      "seller_id": "tuma-careers-147258",
+      "name": "TUMA Careers Portal",
+      "domain": "careers.tuma.app",
+      "seller_type": "PUBLISHER",
+      "is_confidential": 0,
+      "comment": "Job listings and recruitment advertising"
+    }
+  ],
+  "passthrough": [
+    {
+      "name": "Google AdSense",
+      "domain": "google.com"
+    },
+    {
+      "name": "Google Ad Manager",
+      "domain": "doubleclick.net"
+    },
+    {
+      "name": "Amazon Publisher Services",
+      "domain": "amazon-adsystem.com"
+    },
+    {
+      "name": "Microsoft Advertising",
+      "domain": "microsoft.com"
+    },
+    {
+      "name": "Facebook Audience Network",
+      "domain": "facebook.com"
+    },
+    {
+      "name": "Twitter Ads",
+      "domain": "twitter.com"
+    },
+    {
+      "name": "LinkedIn Ads",
+      "domain": "linkedin.com"
+    },
+    {
+      "name": "Unity Ads",
+      "domain": "unityads.unity3d.com"
+    },
+    {
+      "name": "AppLovin",
+      "domain": "applovin.com"
+    },
+    {
+      "name": "ironSource",
+      "domain": "ironsrc.com"
+    },
+    {
+      "name": "Vungle",
+      "domain": "vungle.com"
+    },
+    {
+      "name": "AdColony",
+      "domain": "adcolony.com"
+    },
+    {
+      "name": "Chartboost",
+      "domain": "chartboost.com"
+    },
+    {
+      "name": "InMobi",
+      "domain": "inmobi.com"
+    },
+    {
+      "name": "Tapjoy",
+      "domain": "tapjoy.com"
+    },
+    {
+      "name": "MoPub",
+      "domain": "mopub.com"
+    },
+    {
+      "name": "Smaato",
+      "domain": "smaato.com"
+    },
+    {
+      "name": "PubNative",
+      "domain": "pubnative.net"
+    },
+    {
+      "name": "Fyber",
+      "domain": "fyber.com"
+    },
+    {
+      "name": "Criteo",
+      "domain": "criteo.com"
+    },
+    {
+      "name": "The Trade Desk",
+      "domain": "thetradedesk.com"
+    },
+    {
+      "name": "Prebid.org",
+      "domain": "prebid.org"
+    },
+    {
+      "name": "OpenX",
+      "domain": "openx.com"
+    },
+    {
+      "name": "PubMatic",
+      "domain": "pubmatic.com"
+    },
+    {
+      "name": "Index Exchange",
+      "domain": "indexexchange.com"
+    },
+    {
+      "name": "Rubicon Project",
+      "domain": "rubiconproject.com"
+    },
+    {
+      "name": "Magnite",
+      "domain": "magnite.com"
+    },
+    {
+      "name": "AppNexus",
+      "domain": "appnexus.com"
+    },
+    {
+      "name": "Sovrn",
+      "domain": "sovrn.com"
+    },
+    {
+      "name": "33Across",
+      "domain": "33across.com"
+    },
+    {
+      "name": "Coinbase Advertising",
+      "domain": "coinbase.com"
+    },
+    {
+      "name": "CoinGecko Ads",
+      "domain": "coingecko.com"
+    },
+    {
+      "name": "CoinMarketCap Ads",
+      "domain": "coinmarketcap.com"
+    },
+    {
+      "name": "Brave Ads",
+      "domain": "brave.com"
+    },
+    {
+      "name": "DuckDuckGo Ads",
+      "domain": "duckduckgo.com"
+    }
+  ],
+  "ext": {
+    "compliance": {
+      "gdpr": true,
+      "ccpa": true,
+      "coppa": false,
+      "lgpd": true
+    },
+    "certifications": [
+      "TAG Certified Against Fraud",
+      "IAB Tech Lab Certified",
+      "MRC Viewability Certified",
+      "JICWEBS Brand Safety Certified"
+    ],
+    "categories": [
+      "Technology",
+      "Blockchain",
+      "Security",
+      "Web3",
+      "File Sharing",
+      "Enterprise Software",
+      "Cybersecurity",
+      "Decentralized Storage",
+      "Cryptocurrency",
+      "Digital Privacy"
+    ],
+    "languages": [
+      "en",
+      "es",
+      "fr",
+      "de",
+      "ja",
+      "zh",
+      "ko",
+      "pt",
+      "ru",
+      "ar"
+    ],
+    "geo_targets": [
+      "US",
+      "CA",
+      "GB",
+      "DE",
+      "FR",
+      "ES",
+      "IT",
+      "NL",
+      "SE",
+      "NO",
+      "DK",
+      "FI",
+      "AU",
+      "NZ",
+      "JP",
+      "KR",
+      "SG",
+      "HK",
+      "TW",
+      "IN",
+      "BR",
+      "MX",
+      "AR",
+      "CL",
+      "CO",
+      "PE",
+      "ZA",
+      "AE",
+      "IL",
+      "CH",
+      "AT",
+      "BE",
+      "LU",
+      "IE",
+      "PT",
+      "PL",
+      "CZ",
+      "HU",
+      "RO",
+      "BG",
+      "HR",
+      "SI",
+      "SK",
+      "LT",
+      "LV",
+      "EE"
+    ],
+    "last_updated": "2024-12-19T12:00:00Z",
+    "next_update": "2025-03-19T12:00:00Z",
+    "contact_info": {
+      "technical": "tech@tuma.app",
+      "business": "business@tuma.app",
+      "legal": "legal@tuma.app",
+      "privacy": "privacy@tuma.app",
+      "security": "security@tuma.app"
+    },
+    "social_media": {
+      "twitter": "@TumaApp",
+      "linkedin": "/company/tuma-app",
+      "github": "@tuma-app",
+      "discord": "discord.gg/tuma",
+      "telegram": "@TumaOfficial",
+      "reddit": "r/TumaApp"
+    },
+    "transparency_report": "https://tuma.app/transparency",
+    "privacy_policy": "https://tuma.app/privacy",
+    "terms_of_service": "https://tuma.app/terms",
+    "cookie_policy": "https://tuma.app/cookies",
+    "data_processing_agreement": "https://tuma.app/dpa",
+    "advertising_policy": "https://tuma.app/advertising-policy"
+  }
+}

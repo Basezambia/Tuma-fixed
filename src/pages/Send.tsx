@@ -8,6 +8,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { useAccount } from 'wagmi';
 import { Checkout, CheckoutButton, CheckoutStatus } from '@coinbase/onchainkit/checkout';
 import { getAddress } from '@coinbase/onchainkit/identity';
+import { Avatar } from '@coinbase/onchainkit/identity';
 import { base } from 'wagmi/chains';
 
 // Define the SentFileInfo interface
@@ -37,7 +38,7 @@ const Send = () => {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [serviceFee, setServiceFee] = useState<string>('0.00'); // Real-time calculation only
+  const [serviceFee, setServiceFee] = useState<string | null>(null); // Real-time calculation only
   const [paymentCurrency, setPaymentCurrency] = useState<'USDC'>('USDC');
   const [documentId, setDocumentId] = useState("");
   const [arweaveTxId, setArweaveTxId] = useState<string | null>(null);
@@ -47,8 +48,70 @@ const Send = () => {
   const [chargeId, setChargeId] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false); // Controls the Checkout modal
+  const [userStorageCredits, setUserStorageCredits] = useState<{
+    total_credits_mb: number;
+    used_credits_mb: number;
+    available_credits_mb: number;
+  } | null>(null);
+  const [isCheckingCredits, setIsCheckingCredits] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [sentFiles, setSentFiles] = useState<SentFileInfo[]>([]);
+
+  // Get sender address from wallet
+  const { address: senderAddress, isConnected } = useAccount();
+
+  // Function to check user storage credits
+  const checkUserStorageCredits = async () => {
+    if (!senderAddress) return null;
+    
+    try {
+      setIsCheckingCredits(true);
+      const response = await fetch(`/api/getUserStorage?userId=${senderAddress}&walletAddress=${senderAddress}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch storage credits');
+      }
+      const data = await response.json();
+      const credits = {
+        total_credits_mb: data.credits?.total_credits_mb || 0,
+        used_credits_mb: data.credits?.used_credits_mb || 0,
+        available_credits_mb: data.credits?.available_credits_mb || 0
+      };
+      setUserStorageCredits(credits);
+      return credits;
+    } catch (error) {
+      console.error('Error checking storage credits:', error);
+      return null;
+    } finally {
+      setIsCheckingCredits(false);
+    }
+  };
+
+  // Fetch sent files from Arweave instead of localStorage
+  useEffect(() => {
+    const fetchSentFiles = async () => {
+      if (senderAddress) {
+        try {
+          const files = await arweaveService.getSentFiles(senderAddress);
+          const mappedFiles: SentFileInfo[] = files.map(file => ({
+            id: file.id,
+            name: file.metadata.name,
+            size: file.metadata.size,
+            type: file.metadata.type,
+            recipient: file.metadata.recipient || '',
+            recipientAddress: file.metadata.recipientAddress || '',
+            txId: file.id,
+            timestamp: file.metadata.timestamp,
+            encryptionKey: file.metadata.encryptionKey || ''
+          }));
+          setSentFiles(mappedFiles);
+        } catch (error) {
+          console.error('Error fetching sent files from Arweave:', error);
+        }
+      }
+    };
+    
+    fetchSentFiles();
+  }, [senderAddress]);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [isResolvingName, setIsResolvingName] = useState(false);
 
@@ -102,9 +165,6 @@ const Send = () => {
     return stored ? parseInt(stored, 10) : Date.now();
   });
 
-  // Get sender address from wallet
-  const { address: senderAddress, isConnected } = useAccount();
-  
   // Optional: Add an effect to log connection status changes
   useEffect(() => {
     if (isConnected) {
@@ -188,13 +248,27 @@ const Send = () => {
       
       // Calculate total size and prepare document IDs
       const totalSize = getTotalFileSize();
+      const totalSizeMB = totalSize / (1024 * 1024);
       const fileDocIds = files.map(() => `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
       
       // Store document IDs for the batch
       setDocumentId(fileDocIds[0]); // Store the first doc ID for payment processing
       
-      // Show payment confirmation
-      setShowPaymentDialog(true);
+      // Check for storage credits first
+      const credits = await checkUserStorageCredits();
+      
+      if (credits && credits.available_credits_mb >= totalSizeMB) {
+        // User has sufficient credits, proceed directly to upload
+        toast.success(`Using ${totalSizeMB.toFixed(2)} MB from your storage credits`);
+        setShowPaymentDialog(false);
+        await handlePostPaymentUpload();
+      } else {
+        // Insufficient credits, show payment dialog
+        if (credits) {
+          toast.info(`Insufficient credits. Available: ${credits.available_credits_mb.toFixed(2)} MB, Required: ${totalSizeMB.toFixed(2)} MB`);
+        }
+        setShowPaymentDialog(true);
+      }
     } catch (error) {
       console.error("Error preparing documents:", error);
       toast.error("Failed to prepare documents for sending");
@@ -206,6 +280,7 @@ const Send = () => {
     pricePerMBInAR: number;
     pricePerMBInUSD: number;
     pricePerMBInWinston: number;
+    arToUsdRate: number;
     timestamp: number;
     networkFactor: number;
   } | null>(null);
@@ -217,11 +292,19 @@ const Send = () => {
     try {
       setIsLoadingArweavePricing(true);
       setArweavePricingError(null);
+      
       const response = await fetch('/api/getArweavePrice');
+      
       if (!response.ok) {
         throw new Error('Failed to fetch Arweave pricing');
       }
+      
       const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.message || 'API returned error');
+      }
+      
       setArweavePricing(data);
       return data;
     } catch (error) {
@@ -233,21 +316,48 @@ const Send = () => {
     }
   }, []);
 
-  // Calculate dynamic pricing based on Arweave token price with 7% profit margin
+  // Calculate dynamic pricing based on Arweave token price with 20% profit margin
   const calculateDynamicPrice = useCallback((sizeMB: number, pricingData: any) => {
     if (!pricingData) return null;
     
-    // Base cost calculation using REAL Arweave pricing
-    const baseCostInUSD = sizeMB * pricingData.pricePerMBInUSD;
+    const sizeInBytes = sizeMB * 1024 * 1024;
     
-    // Apply network factor (represents network congestion, etc.)
-    const adjustedCostInUSD = baseCostInUSD * pricingData.networkFactor;
+    // Use ArDrive-inspired calculation with proper overhead and bundling fees
+    let baseCostWinston;
     
-    // Add 7% profit margin (reduced from 35%)
-    const totalCostWithMargin = adjustedCostInUSD * 1.07;
+    // Use tiered pricing for better accuracy
+    if (sizeInBytes <= 1024) {
+      // Small files: use 1KB pricing
+      baseCostWinston = Number(pricingData.uploadCosts?.['1KB']?.winston || pricingData.pricePerMBInWinston / 1024);
+    } else if (sizeInBytes <= 1024 * 1024) {
+      // Medium files: interpolate between 1KB and 1MB
+      const ratio = sizeInBytes / (1024 * 1024);
+      baseCostWinston = Number(pricingData.uploadCosts?.['1MB']?.winston || pricingData.pricePerMBInWinston) * ratio;
+    } else {
+      // Large files: use per-MB calculation with proper scaling
+      baseCostWinston = (Number(pricingData.uploadCosts?.['1MB']?.winston || pricingData.pricePerMBInWinston) / (1024 * 1024)) * sizeInBytes;
+    }
     
-    // Pure real-time Arweave pricing without artificial minimums
-    return totalCostWithMargin.toFixed(2);
+    // Apply ArDrive-style adjustments
+    const dataItemOverhead = Math.ceil(sizeInBytes * 0.001); // Data item structure overhead
+    const bundlingFee = Math.ceil(baseCostWinston * 0.05); // 5% bundling fee
+    const totalWinston = baseCostWinston + dataItemOverhead + bundlingFee;
+    
+    // Convert to USD
+    const totalAR = totalWinston / 1e12;
+    const baseCostInUSD = totalAR * pricingData.arToUsdRate;
+    
+    // Apply network factor for congestion
+    const adjustedCostInUSD = baseCostInUSD * (pricingData.networkFactor || 1.0);
+    
+    // Add service margin (15% instead of 20% for better competitiveness)
+    const totalCostWithMargin = adjustedCostInUSD * 1.15;
+    
+    // Ensure minimum viable pricing for very small files
+    const minimumPrice = 0.01; // $0.01 minimum
+    const finalPrice = Math.max(totalCostWithMargin, minimumPrice);
+    
+    return finalPrice.toFixed(2);
   }, []);
 
   // Calculate pricing for specific size tiers using real-time Arweave data
@@ -278,31 +388,30 @@ const Send = () => {
       } else {
         // Over 500MB - not allowed
         tier = 'File too large';
-        fee = '0.00';
         toast.error('Maximum file size is 500MB');
         setFileSizeTier(tier);
-        setServiceFee(fee);
+        setServiceFee(null);
         return;
       }
       
-      // Calculate dynamic pricing for all file sizes
+      // Calculate dynamic pricing for all file sizes using real API prices only
       if (arweavePricing && arweavePricing.timestamp > Date.now() - 3600000) { // Cache for 1 hour
         const dynamicFee = calculateDynamicPrice(totalSizeMB, arweavePricing);
-        if (dynamicFee) {
-          fee = dynamicFee;
+        if (dynamicFee && parseFloat(dynamicFee) > 0) {
+          fee = dynamicFee; // Use actual API price only
         } else {
-          fee = '0.00'; // No artificial minimum
+          fee = null; // Wait for valid pricing
         }
       } else {
-        // Set loading state while fetching real-time data
-        fee = '0.00';
+        // Wait for real-time data, no fallback
+        fee = null;
         
         // Fetch fresh pricing data
         fetchArweavePricing().then(pricingData => {
           if (pricingData) {
             const dynamicFee = calculateDynamicPrice(totalSizeMB, pricingData);
-            if (dynamicFee) {
-              setServiceFee(dynamicFee);
+            if (dynamicFee && parseFloat(dynamicFee) > 0) {
+              setServiceFee(dynamicFee); // Use real API price only
             }
           }
         });
@@ -312,7 +421,7 @@ const Send = () => {
       setServiceFee(fee);
     } else {
       setFileSizeTier(null);
-      setServiceFee('0.00');
+      setServiceFee(null); // No files, no fee
     }
   }, [files, arweavePricing, calculateDynamicPrice, fetchArweavePricing]);
   
@@ -417,6 +526,9 @@ const Send = () => {
       }
 
       // Validate service fee
+      if (!serviceFee) {
+        throw new Error('Pricing is still loading. Please wait for real-time pricing calculation.');
+      }
       const fee = Number(serviceFee);
       if (isNaN(fee) || fee <= 0) {
         throw new Error('Invalid service fee amount');
@@ -743,6 +855,43 @@ const Send = () => {
             throw new Error(`Failed to upload file ${file.name} to Arweave`);
           }
           
+          // If user has credits, deduct the storage amount
+          if (userStorageCredits && userStorageCredits.available_credits_mb > 0) {
+            const fileSizeMB = file.size / (1024 * 1024);
+            try {
+              const response = await fetch('/api/upload', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  userId: senderAddress,
+                  walletAddress: senderAddress,
+                  fileId: txId,
+                  fileSizeMB: fileSizeMB,
+                  useCredits: true,
+                  deductOnly: true // Flag to only deduct credits, not upload
+                })
+              });
+              
+              if (!response.ok) {
+                console.error('Failed to deduct storage credits');
+                toast.error('File uploaded but failed to deduct credits. Please contact support.');
+              } else {
+                // Update local credits state
+                setUserStorageCredits(prev => prev ? {
+                  ...prev,
+                  used_credits_mb: prev.used_credits_mb + fileSizeMB,
+                  available_credits_mb: prev.available_credits_mb - fileSizeMB
+                } : null);
+                toast.success(`Deducted ${fileSizeMB.toFixed(2)} MB from your storage credits`);
+              }
+            } catch (error) {
+              console.error('Error deducting storage credits:', error);
+              toast.error('File uploaded but failed to deduct credits. Please contact support.');
+            }
+          }
+          
           // Store success info for all recipients
           for (const recipient of validRecipients) {
             successfulUploads.push({
@@ -780,11 +929,30 @@ const Send = () => {
         }
       }
       
-      // Add all successful uploads to sent files
+      // Add all successful uploads to sent files (will be refreshed from Arweave)
       if (successfulUploads.length > 0) {
-        const updatedSentFiles = [...sentFiles, ...successfulUploads];
-        setSentFiles(updatedSentFiles);
-        localStorage.setItem('sentFiles', JSON.stringify(updatedSentFiles));
+        // Refresh sent files from Arweave after upload
+        setTimeout(async () => {
+          if (senderAddress) {
+            try {
+              const files = await arweaveService.getSentFiles(senderAddress);
+              const mappedFiles: SentFileInfo[] = files.map(file => ({
+                id: file.id,
+                name: file.metadata.name,
+                size: file.metadata.size,
+                type: file.metadata.type,
+                recipient: file.metadata.recipient || '',
+                recipientAddress: file.metadata.recipientAddress || '',
+                txId: file.id,
+                timestamp: file.metadata.timestamp,
+                encryptionKey: file.metadata.encryptionKey || ''
+              }));
+              setSentFiles(mappedFiles);
+            } catch (error) {
+              console.error('Error refreshing sent files from Arweave:', error);
+            }
+          }
+        }, 3000); // 3 second delay to allow Arweave indexing
         
         // Dispatch tuma:newSentFile event for each successful upload for notifications
         // Add delay to allow Arweave indexing
@@ -820,8 +988,19 @@ const Send = () => {
     } catch (error) {
       console.error("Error in upload process:", error);
       setShowProgressDialog(false);
-      setUploadError(error instanceof Error ? error.message : 'Unknown error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setUploadError(errorMessage);
       toast.error("An unexpected error occurred during the upload process. Please try again.");
+      
+      // Dispatch failed upload event for notification
+      const failedEvent = new CustomEvent('uploadComplete', {
+        detail: {
+          fileName: files[0]?.name || 'File',
+          success: false,
+          error: errorMessage
+        }
+      });
+      window.dispatchEvent(failedEvent);
     } finally {
       setSending(false);
       setUploading(false);
@@ -1029,32 +1208,63 @@ const Send = () => {
     <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 dark:from-[#191919] dark:to-[#191919] page-transition">
       <Header />
       
-      <main className="pt-28 px-6 pb-16 max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">Send Files</h1>
-          <p className="text-doc-medium-gray">
+      <main className="pt-20 sm:pt-28 px-3 sm:px-6 pb-12 sm:pb-16 max-w-7xl mx-auto">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">Send Files</h1>
+          <p className="text-sm sm:text-base text-doc-medium-gray">
             Share files securely with individuals or teams
           </p>
+          
+          {/* Storage Credits Indicator - Hidden in Alpha */}
+          {false && senderAddress && (
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Storage Credits
+                  </span>
+                </div>
+                {isCheckingCredits ? (
+                  <div className="text-sm text-blue-600 dark:text-blue-400">Checking...</div>
+                ) : userStorageCredits ? (
+                  <div className="text-sm text-blue-800 dark:text-blue-200">
+                    <span className="font-semibold">{userStorageCredits.available_credits_mb.toFixed(2)} MB</span> available
+                    <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">
+                      ({userStorageCredits.used_credits_mb.toFixed(2)}/{userStorageCredits.total_credits_mb.toFixed(2)} MB used)
+                    </span>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={checkUserStorageCredits}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                  >
+                    Check Credits
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-2">
-            <div className="glass-panel p-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="lg:col-span-2">
+            <div className="glass-panel p-4 sm:p-6 lg:p-8">
               <form onSubmit={handleSubmit}>
-                <div className="mb-8">
+                <div className="mb-6 sm:mb-8">
                   <label className="block text-sm font-medium mb-2">
                     Select Files
                   </label>
                   
                   {/* Show completion animation when 8 files reached */}
                   {showCompletionAnimation && (
-                    <div className="border-2 border-gray-300 rounded-xl p-12 text-center bg-gray-50 dark:bg-gray-900/20">
+                    <div className="border-2 border-gray-300 rounded-xl p-8 sm:p-12 text-center bg-gray-50 dark:bg-gray-900/20">
                       <div className="mx-auto h-8 w-8 bg-gray-500 rounded-full flex items-center justify-center mb-4">
                         <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <p className="text-gray-600 dark:text-gray-400 mb-2 text-lg font-medium">
+                      <p className="text-gray-600 dark:text-gray-400 mb-2 text-base sm:text-lg font-medium">
                         Upload Complete!
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1066,10 +1276,10 @@ const Send = () => {
                   {/* Regular upload area - only show when less than 8 files and not showing animation */}
                   {files.length < 8 && !showCompletionAnimation && (
                     <label htmlFor="file" tabIndex={0}
-                      className="group transition-all duration-200 border-2 border-dashed border-doc-pale-gray dark:border-gray-600 rounded-xl p-12 text-center bg-white dark:bg-gray-800 hover:shadow-2xl hover:scale-103 hover:bg-blue-50/60 dark:hover:bg-blue-900/40 cursor-pointer ease-in-out flex flex-col items-center justify-center focus-within:shadow-2xl focus-within:scale-103"
+                      className="group transition-all duration-200 border-2 border-dashed border-doc-pale-gray dark:border-gray-600 rounded-xl p-8 sm:p-12 text-center bg-white dark:bg-gray-800 hover:shadow-2xl hover:scale-103 hover:bg-blue-50/60 dark:hover:bg-blue-900/40 cursor-pointer ease-in-out flex flex-col items-center justify-center focus-within:shadow-2xl focus-within:scale-103"
                     >
-                      <FileUp className="mx-auto h-14 w-14 text-doc-medium-gray mb-4 transition-all duration-200 group-hover:text-doc-deep-blue" />
-                      <p className="text-doc-medium-gray mb-6 text-lg font-medium group-hover:text-doc-deep-blue">
+                      <FileUp className="mx-auto h-10 sm:h-14 w-10 sm:w-14 text-doc-medium-gray mb-3 sm:mb-4 transition-all duration-200 group-hover:text-doc-deep-blue" />
+                      <p className="text-doc-medium-gray mb-4 sm:mb-6 text-base sm:text-lg font-medium group-hover:text-doc-deep-blue">
                         Drag and drop files, or click to select
                       </p>
                       <input
@@ -1085,8 +1295,8 @@ const Send = () => {
                   )}
                   
                   {files.length > 0 && (
-                    <div className={files.length < 8 && !showCompletionAnimation ? "mt-6" : "mt-4"}>
-                      <div className="flex justify-between items-center mb-3">
+                    <div className={files.length < 8 && !showCompletionAnimation ? "mt-4 sm:mt-6" : "mt-3 sm:mt-4"}>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
                         <h3 className="text-sm font-medium">Selected Files ({files.length}/8)</h3>
                         <p className="text-xs text-doc-medium-gray">
                           Total size: {(getTotalFileSize() / 1024 / 1024).toFixed(2)}/500 MB
@@ -1145,12 +1355,6 @@ const Send = () => {
                       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 mb-4">
                         <div className="flex items-center gap-2 overflow-x-auto">
                           {recipients.map((recipient, index) => {
-                            const colors = [
-                              'bg-slate-600',    // Dark blue-gray (lloyd's color)
-                              'bg-gray-400'      // Light gray (lilly's color)
-                            ];
-                            const dotColor = colors[index % colors.length];
-                            
                             return (
                               <div 
                                 key={index}
@@ -1168,7 +1372,13 @@ const Send = () => {
                                 }}
                                 title={`Click to edit ${recipient.name}`}
                               >
-                                <div className={`w-5 h-5 rounded-full ${dotColor} mr-1.5 flex-shrink-0`}></div>
+                                <div className="mr-1.5 flex-shrink-0">
+                                  <Avatar 
+                                    address={recipient.address as `0x${string}`} 
+                                    chain={base}
+                                    className="w-5 h-5"
+                                  />
+                                </div>
                                 <span className="text-gray-700 dark:text-gray-300 font-medium text-xs">
                                   {recipient.name.length > 5 ? recipient.name.substring(0, 5) : recipient.name}
                                 </span>
@@ -1207,7 +1417,7 @@ const Send = () => {
                     
                     {/* Recipient Form - Only show if no recipients added */}
                     {recipients.length === 0 && (
-                      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-200">
+                      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-200">
                         <div className="mb-4">
                           <label 
                             htmlFor="recipient-name"
@@ -1287,7 +1497,7 @@ const Send = () => {
                     </p>
                   </div>
 
-                <div className="mb-8">
+                <div className="mb-6 sm:mb-8">
                   <label 
                     htmlFor="message"
                     className="block text-sm font-medium mb-2"
@@ -1296,7 +1506,7 @@ const Send = () => {
                   </label>
                   <textarea
                     id="message"
-                    rows={4}
+                    rows={3}
                     placeholder="Add a message to the recipient..."
                     className="w-full bg-white dark:bg-gray-700 border-none rounded-lg focus:ring-1 focus:ring-blue-500 outline-none py-3 px-4 text-gray-800 dark:text-white"
                     value={message}
@@ -1307,9 +1517,10 @@ const Send = () => {
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="inline-flex items-center px-6 py-3 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-medium transition-colors"
+                    className="inline-flex items-center px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-medium transition-colors text-sm sm:text-base"
                   >
-                    <SendIcon size={18} className="mr-2" />
+                    <SendIcon size={16} className="mr-2 sm:hidden" />
+                    <SendIcon size={18} className="mr-2 hidden sm:block" />
                     Send
                   </button>
                 </div>
@@ -1318,10 +1529,11 @@ const Send = () => {
           </div>
           
           <div>
-            <div className="glass-panel p-6">
+            <div className="glass-panel p-4 sm:p-6">
               <div className="flex items-center mb-4">
-                <Users size={18} className="text-doc-deep-blue mr-2" />
-                <h3 className="font-medium">Recent Recipients</h3>
+                <Users size={16} className="text-doc-deep-blue mr-2 sm:hidden" />
+                <Users size={18} className="text-doc-deep-blue mr-2 hidden sm:block" />
+                <h3 className="font-medium text-sm sm:text-base">Recent Recipients</h3>
               </div>
               <div className="space-y-3">
                 {isLoadingRecipients ? (
@@ -1331,12 +1543,6 @@ const Send = () => {
                   </div>
                 ) : recentRecipients.length > 0 ? (
                   recentRecipients.slice(0, 4).map((recipient, index) => {
-                    const colors = [
-                      'bg-slate-600',    // Dark blue-gray (lloyd's color)
-                      'bg-gray-400'      // Light gray (lilly's color)
-                    ];
-                    const circleColor = colors[index % colors.length];
-                    
                     return (
                       <button
                         key={recipient.address}
@@ -1352,18 +1558,23 @@ const Send = () => {
                           }
 
                         }}
-                        className="flex items-center w-full p-3 rounded-lg hover:bg-doc-soft-blue dark:hover:bg-blue-900/30 transition-colors text-left"
+                        className="flex items-center w-full p-2 sm:p-3 rounded-lg hover:bg-doc-soft-blue dark:hover:bg-blue-900/30 transition-colors text-left"
                       >
-                        <div className={`w-8 h-8 rounded-full ${circleColor} text-white flex items-center justify-center mr-3`}>
-                          {/* Removed: {recipient.name.charAt(0)} */}
+                        <div className="mr-2 sm:mr-3">
+                          <Avatar 
+                            address={recipient.address as `0x${string}`} 
+                            chain={base}
+                            className="w-6 h-6 sm:w-8 sm:h-8"
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{recipient.name.length > 15 ? recipient.name.substring(0, 15) + '...' : recipient.name}</p>
-                          <p className="text-xs text-doc-medium-gray truncate">{recipient.address.length > 18 ? recipient.address.substring(0, 18) + '...' : recipient.address}</p>
+                          <p className="font-medium truncate text-sm sm:text-base">{recipient.name.length > 12 ? recipient.name.substring(0, 12) + '...' : recipient.name}</p>
+                          <p className="text-xs text-doc-medium-gray truncate">{recipient.address.length > 15 ? recipient.address.substring(0, 15) + '...' : recipient.address}</p>
                         </div>
                         <div className="text-xs text-doc-medium-gray flex items-center">
-                          <Clock size={12} className="mr-1" />
-                          {formatRelativeTime(new Date(recipient.lastSent))}
+                          <Clock size={10} className="mr-1 sm:hidden" />
+                          <Clock size={12} className="mr-1 hidden sm:block" />
+                          <span className="hidden sm:inline">{formatRelativeTime(new Date(recipient.lastSent))}</span>
                         </div>
                       </button>
                     );
@@ -1377,9 +1588,9 @@ const Send = () => {
               </div>
             </div>
             
-            <div className="glass-panel p-6 mt-6">
-              <h3 className="font-medium mb-4">Send Tips</h3>
-              <ul className="space-y-3 text-sm text-doc-medium-gray">
+            <div className="glass-panel p-4 sm:p-6 mt-4 sm:mt-6">
+              <h3 className="font-medium mb-3 sm:mb-4 text-sm sm:text-base">Send Tips</h3>
+              <ul className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-doc-medium-gray">
                 <li className="flex">
                   <span className="text-doc-deep-blue mr-2">•</span>
                   Files are encrypted end-to-end for security
@@ -1467,7 +1678,9 @@ const Send = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="text-center">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Service Fee</p>
-                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">${serviceFee} USDC</p>
+                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                      {serviceFee ? `$${serviceFee} USDC` : 'Calculating...'}
+                    </p>
                   </div>
                   <div className="text-center">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">File Size Tier</p>
@@ -1577,8 +1790,18 @@ const Send = () => {
                       console.error('Error in post-payment upload:', err);
                       const errorMessage = err.message || 'Unknown error occurred';
                       
-                      // Show user-friendly error message instead of notification
+                      // Show user-friendly error message and dispatch failed notification
                       toast.error(`Transaction failed: ${errorMessage}. Please try again now or later.`);
+                      
+                      // Dispatch failed upload event for notification
+                      const failedEvent = new CustomEvent('uploadComplete', {
+                        detail: {
+                          fileName: files[0]?.name || 'File',
+                          success: false,
+                          error: errorMessage
+                        }
+                      });
+                      window.dispatchEvent(failedEvent);
                       
                       setUploadError(`Upload failed after successful payment: ${errorMessage}`);
                       setPaymentStatus('error');

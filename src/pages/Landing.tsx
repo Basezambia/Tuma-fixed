@@ -16,7 +16,14 @@ const Landing = () => {
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const [isHovering, setIsHovering] = useState(false);
-  const [arweavePricing, setArweavePricing] = useState(null);
+  const [arweavePricing, setArweavePricing] = useState<{
+    pricePerMBInAR: number;
+    pricePerMBInUSD: number;
+    pricePerMBInWinston: number;
+    arToUsdRate: number;
+    timestamp: number;
+    networkFactor: number;
+  } | null>(null);
   const [isLoadingPricing, setIsLoadingPricing] = useState(true);
   const [showWalletModal, setShowWalletModal] = useState(false);
 
@@ -26,25 +33,61 @@ const Landing = () => {
       return 'Loading...'; // Show loading state instead of artificial minimum
     }
 
-    const basePrice = sizeInMB * arweavePricing.pricePerMBInUSD;
-    const networkFactor = arweavePricing.networkFactor || 1;
-    const adjustedPrice = basePrice * networkFactor;
-    const finalPrice = adjustedPrice * 1.07; // 7% profit margin (reduced from 35%)
-
-    // Pure real-time Arweave pricing without artificial minimums
+    const sizeInBytes = sizeInMB * 1024 * 1024;
+    
+    // Use ArDrive-inspired calculation with proper overhead and bundling fees
+    let baseCostWinston;
+    
+    // Use tiered pricing for better accuracy
+    if (sizeInBytes <= 1024) {
+      // Small files: use 1KB pricing
+      baseCostWinston = arweavePricing.pricePerMBInWinston / 1024;
+    } else if (sizeInBytes <= 1024 * 1024) {
+      // Medium files: interpolate between 1KB and 1MB
+      const ratio = sizeInBytes / (1024 * 1024);
+      baseCostWinston = arweavePricing.pricePerMBInWinston * ratio;
+    } else {
+      // Large files: use per-MB calculation with proper scaling
+      baseCostWinston = (arweavePricing.pricePerMBInWinston / (1024 * 1024)) * sizeInBytes;
+    }
+    
+    // Apply ArDrive-style adjustments
+    const dataItemOverhead = Math.ceil(sizeInBytes * 0.001); // Data item structure overhead
+    const bundlingFee = Math.ceil(baseCostWinston * 0.05); // 5% bundling fee
+    const totalWinston = baseCostWinston + dataItemOverhead + bundlingFee;
+    
+    // Convert to USD
+    const totalAR = totalWinston / 1e12;
+    const baseCostInUSD = totalAR * arweavePricing.arToUsdRate;
+    
+    // Apply network factor for congestion
+    const adjustedCostInUSD = baseCostInUSD * (arweavePricing.networkFactor || 1.0);
+    
+    // Add service margin (15% instead of 20% for better competitiveness)
+    const totalCostWithMargin = adjustedCostInUSD * 1.15;
+    
+    // Ensure minimum viable pricing for very small files
+    const minimumPrice = 0.01; // $0.01 minimum
+    const finalPrice = Math.max(totalCostWithMargin, minimumPrice);
+    
     return finalPrice.toFixed(2);
   }, [arweavePricing]);
   
   // Calculate pricing variables using real-time data only
-  const arPrice = arweavePricing ? (parseFloat(calculateDynamicPrice(1)) / (arweavePricing.pricePerARInUSD || 1)).toFixed(4) : 'Loading...';
+  const arPrice = arweavePricing ? (parseFloat(calculateDynamicPrice(1)) / arweavePricing.arToUsdRate).toFixed(4) : 'Loading...';
   const usdPrice = arweavePricing ? `$${calculateDynamicPrice(1)} USDC` : 'Loading...';
 
   // Fetch Arweave pricing data
   const fetchArweavePricing = useCallback(async () => {
     try {
       const response = await fetch('/api/getArweavePrice');
-      const data = await response.json();
-      setArweavePricing(data);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (!data.error) {
+          setArweavePricing(data);
+        }
+      }
     } catch (error) {
       console.error('Error fetching Arweave pricing:', error);
     } finally {
@@ -224,38 +267,38 @@ const Landing = () => {
         </div>
 
         {/* Scrollytelling Section */}
-        <div className="py-24 relative overflow-hidden">
-          <div className="max-w-6xl mx-auto px-4">
+        <div className="py-12 sm:py-16 lg:py-24 relative overflow-hidden">
+          <div className="max-w-6xl mx-auto px-3 sm:px-4">
             {scrollStories.map((story, index) => (
               <div 
                 key={story.id}
                 id={story.id}
                 data-scroll-animation
-                className={`min-h-screen flex items-center justify-center mb-16 ${
+                className={`min-h-[80vh] sm:min-h-screen flex items-center justify-center mb-8 sm:mb-12 lg:mb-16 ${
                   visibleElements.has(story.id) ? 'scroll-reveal revealed' : 'scroll-reveal'
                 }`}
               >
-                <div className="text-center max-w-4xl">
-                  <div className={`mb-8 flex justify-center ${
+                <div className="text-center max-w-4xl px-4">
+                  <div className={`mb-6 sm:mb-8 flex justify-center ${
                     visibleElements.has(story.id) ? 'scroll-scale visible stagger-1' : 'scroll-scale'
                   }`}>
                     {story.icon}
                   </div>
-                  <h2 className={`text-5xl md:text-6xl font-bold text-gray-900 mb-6 ${
+                  <h2 className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 ${
                     visibleElements.has(story.id) ? 'scroll-slide-left visible stagger-2' : 'scroll-slide-left'
                   }`}>
                     {story.title}
                   </h2>
-                  <p className={`text-xl md:text-2xl text-gray-700 mb-8 leading-relaxed ${
+                  <p className={`text-lg sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 leading-relaxed ${
                     visibleElements.has(story.id) ? 'scroll-slide-right visible stagger-3' : 'scroll-slide-right'
                   }`}>
                     {story.content}
                   </p>
-                  <div className={`bg-white/30 backdrop-blur-md rounded-2xl p-6 inline-block border border-white/40 ${
+                  <div className={`bg-white/30 backdrop-blur-md rounded-2xl p-4 sm:p-6 inline-block border border-white/40 ${
                     visibleElements.has(story.id) ? 'scroll-fade-in visible stagger-4' : 'scroll-fade-in'
                   }`}>
-                    <div className="text-3xl font-bold text-gray-900 mb-2">{story.stats}</div>
-                    <div className="text-gray-600">Industry benchmark</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{story.stats}</div>
+                    <div className="text-sm sm:text-base text-gray-600">Industry benchmark</div>
                   </div>
                 </div>
               </div>
@@ -264,13 +307,13 @@ const Landing = () => {
         </div>
 
         {/* Hero Content Section */}
-        <div className="py-12 bg-white/10 backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto text-center px-4">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 border border-white/20 shadow-2xl">
-              <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-10">
+        <div className="py-8 sm:py-12 bg-white/10 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto text-center px-3 sm:px-4">
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-12 border border-white/20 shadow-2xl">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold text-gray-900 mb-6 sm:mb-8 lg:mb-10">
                 Store Forever, <span className="text-green-800">Pay Once</span>
               </h1>
-              <div className="flex flex-col sm:flex-row gap-6 justify-center">
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center">
                 {isConnected ? (
                   <button 
                     onClick={() => navigate('/send')}

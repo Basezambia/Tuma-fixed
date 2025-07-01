@@ -1,0 +1,147 @@
+/* TEAM */
+
+Founder & CTO: Lrdmnd
+Contact: alex [at] tumaapp.xyz
+Twitter: @basedzambia
+From: lusaka, Zambia
+Role: Product Vision & Strategy
+
+/* THANKS */
+
+Special thanks to our beta testers:
+- Web3 Security Alliance
+- Blockchain Developers Community
+- Crypto Twitter early adopters
+- Enterprise pilot customers
+- Open source contributors
+
+/* SITE */
+
+Last update: 2024/12/19
+Language: English / Español / Français / Deutsch / 日本語 / 中文
+Doctype: HTML5
+IDE: Visual Studio Code, Cursor AI
+Components: React 18, TypeScript, Tailwind CSS
+Fonts: Inter, JetBrains Mono
+Tools: Vite, ESLint, Prettier, Husky
+Testing: Vitest, Playwright, Cypress
+Deployment: Vercel, GitHub Actions
+Monitoring: Sentry, LogRocket, Mixpanel
+Analytics: Google Analytics 4, Plausible
+Security: Snyk, SonarQube, OWASP ZAP
+Performance: Lighthouse, WebPageTest
+Accessibility: axe-core, WAVE
+
+/* TECHNOLOGY STACK */
+
+Frontend:
+- React 18 with TypeScript
+- Vite for build tooling
+- Tailwind CSS for styling
+- Radix UI for components
+- React Router for navigation
+- React Query for state management
+- Framer Motion for animations
+- React Hook Form for forms
+- Zod for validation
+
+Blockchain:
+- Arweave for permanent storage
+- Ethereum for smart contracts
+- IPFS for distributed storage
+- Web3.js / Ethers.js for blockchain interaction
+- WalletConnect for wallet integration
+- MetaMask SDK for wallet support
+
+Backend:
+- Supabase for database
+- Node.js for API services
+- Express.js for REST APIs
+- GraphQL for data queries
+- Redis for caching
+- PostgreSQL for relational data
+
+Security:
+- AES-256 encryption
+- RSA-4096 key exchange
+- ECDSA signatures
+- Zero-knowledge proofs
+- Multi-signature wallets
+- Hardware security modules
+
+Infrastructure:
+- Vercel for hosting
+- Cloudflare for CDN
+- AWS for cloud services
+- Docker for containerization
+- Kubernetes for orchestration
+- GitHub Actions for CI/CD
+
+/* VALUES */
+
+Privacy First - Your data belongs to you
+Security by Design - Military-grade protection
+Decentralization - No single point of failure
+Transparency - Open source when possible
+Accessibility - Usable by everyone
+Sustainability - Environmentally conscious
+Innovation - Pushing boundaries
+Community - Built with and for users
+
+/* CONTACT */
+
+General: hello [at] tuma.app
+Support: support [at] tuma.app
+Security: security [at] tuma.app
+Press: press [at] tuma.app
+Partnerships: partners [at] tuma.app
+Careers: careers [at] tuma.app
+
+Address:
+TUMA Technologies Inc.
+123 Blockchain Avenue
+San Francisco, CA 94105
+United States
+
+Social Media:
+Twitter: @TumaApp
+LinkedIn: /company/tuma-app
+GitHub: @tuma-app
+Discord: discord.gg/tuma
+Telegram: @TumaOfficial
+Reddit: r/TumaApp
+
+/* LEGAL */
+
+Copyright © 2024 TUMA Technologies Inc.
+All rights reserved.
+
+Privacy Policy: https://tuma.app/privacy
+Terms of Service: https://tuma.app/terms
+Cookie Policy: https://tuma.app/cookies
+Security Policy: https://tuma.app/security
+
+Licenses:
+- MIT License for open source components
+- Apache 2.0 for blockchain integrations
+- Creative Commons for documentation
+
+/* STATS */
+
+Files Shared: 1,000,000+
+Users Worldwide: 50,000+
+Countries Served: 150+
+Uptime: 99.99%
+Data Encrypted: 10TB+
+Security Audits: 12
+Open Source Contributions: 500+
+
+                     ████████╗██╗   ██╗███╗   ███╗ █████╗ 
+                     ╚══██╔══╝██║   ██║████╗ ████║██╔══██╗
+                        ██║   ██║   ██║██╔████╔██║███████║
+                        ██║   ██║   ██║██║╚██╔╝██║██╔══██║
+                        ██║   ╚██████╔╝██║ ╚═╝ ██║██║  ██║
+                        ╚═╝    ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝
+
+                    Secure • Permanent • Decentralized
+                         https://tumaapp.xyz

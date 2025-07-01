@@ -1,0 +1,205 @@
+# TUMA - Secure Blockchain File Sharing Platform
+# Apache .htaccess Configuration File
+# This file contains Apache server directives for SEO optimization
+# 
+# IMPORTANT: This is NOT a PowerShell script - it's an Apache configuration file
+# The '<' and '>' characters are part of Apache directive syntax, not PowerShell redirection
+# If you're seeing PowerShell errors, your IDE is incorrectly parsing this file
+# This file should be interpreted as Apache configuration, not PowerShell
+#
+# File Type: Apache Configuration (.htaccess)
+# Language: Apache Configuration Language
+# Purpose: Web server configuration and URL rewriting
+
+# Advanced .htaccess for SEO Optimization
+
+# Enable RewriteEngine
+RewriteEngine On
+
+# Force HTTPS (SSL/TLS)
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Force WWW or Non-WWW (choose one)
+# Force non-www
+RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+# Remove trailing slashes
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} /(.+)/$
+RewriteRule ^ https://%{HTTP_HOST}/%1 [R=301,L]
+
+# Handle React Router (SPA)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
+
+# Security Headers
+<IfModule mod_headers.c>
+    # HSTS (HTTP Strict Transport Security)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    
+    # X-Frame-Options
+    Header always set X-Frame-Options "SAMEORIGIN"
+    
+    # X-Content-Type-Options
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # X-XSS-Protection
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Content Security Policy
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://arweave.net https://base.org wss:; frame-ancestors 'self';"
+    
+    # Permissions Policy
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(self), usb=(), magnetometer=(), gyroscope=(), speaker=()"
+    
+    # Cross-Origin Policies
+    Header always set Cross-Origin-Embedder-Policy "require-corp"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Resource-Policy "cross-origin"
+</IfModule>
+
+# Caching Rules for Performance
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # HTML files
+    ExpiresByType text/html "access plus 1 hour"
+    
+    # CSS and JavaScript
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/javascript "access plus 1 year"
+    
+    # Images
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/ico "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+    
+    # Fonts
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType application/font-woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+    
+    # Other files
+    ExpiresByType application/pdf "access plus 1 month"
+    ExpiresByType application/json "access plus 1 hour"
+    ExpiresByType application/xml "access plus 1 hour"
+    ExpiresByType text/xml "access plus 1 hour"
+ExpiresDefault "access plus 1 month"
+</IfModule>
+
+# Cache Control Headers
+<IfModule mod_headers.c>
+    # Cache static assets for 1 year
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    
+    # Cache HTML for 1 hour
+    <FilesMatch "\.(html|htm)$">
+        Header set Cache-Control "public, max-age=3600, must-revalidate"
+    </FilesMatch>
+    
+    # Don't cache API responses
+    <FilesMatch "\.(json|xml)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
+# Compression
+<IfModule mod_deflate.c>
+    # Compress HTML, CSS, JavaScript, Text, XML and fonts
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/vnd.ms-fontobject
+    AddOutputFilterByType DEFLATE application/x-font
+    AddOutputFilterByType DEFLATE application/x-font-opentype
+    AddOutputFilterByType DEFLATE application/x-font-otf
+    AddOutputFilterByType DEFLATE application/x-font-truetype
+    AddOutputFilterByType DEFLATE application/x-font-ttf
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE font/opentype
+    AddOutputFilterByType DEFLATE font/otf
+    AddOutputFilterByType DEFLATE font/ttf
+    AddOutputFilterByType DEFLATE image/svg+xml
+    AddOutputFilterByType DEFLATE image/x-icon
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/xml
+</IfModule>
+
+# Block access to sensitive files
+<FilesMatch "\.(env|log|htaccess|htpasswd|ini|phps|fla|psd|log|sh)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Block access to version control directories
+RedirectMatch 404 /\.git
+RedirectMatch 404 /\.svn
+RedirectMatch 404 /\.hg
+
+# Custom Error Pages
+ErrorDocument 404 /404.html
+ErrorDocument 500 /500.html
+ErrorDocument 403 /403.html
+
+# SEO-friendly redirects for common misspellings
+Redirect 301 /tumma https://tuma.app/
+Redirect 301 /tuma-app https://tuma.app/
+Redirect 301 /blockchain-file-sharing https://tuma.app/
+Redirect 301 /secure-file-sharing https://tuma.app/
+Redirect 301 /arweave-storage https://tuma.app/
+
+# Canonical redirects
+Redirect 301 /home https://tuma.app/
+Redirect 301 /index https://tuma.app/
+Redirect 301 /main https://tuma.app/
+
+# Add charset to content types
+AddDefaultCharset UTF-8
+
+# MIME Types for better SEO
+<IfModule mod_mime.c>
+    AddType application/javascript .js
+    AddType text/css .css
+    AddType image/svg+xml .svg
+    AddType application/font-woff .woff
+    AddType application/font-woff2 .woff2
+    AddType application/json .json
+    AddType application/ld+json .jsonld
+    AddType application/manifest+json .webmanifest
+    AddType text/cache-manifest .appcache
+</IfModule>
+
+# Prevent image hotlinking
+RewriteCond %{HTTP_REFERER} !^$
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?tuma\.app [NC]
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?google\. [NC]
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?bing\. [NC]
+RewriteCond %{HTTP_REFERER} !^https?://(www\.)?yahoo\. [NC]
+RewriteRule \.(jpg|jpeg|png|gif|svg|webp)$ - [F,L]
+
+# Enable ETags for better caching
+FileETag MTime Size
+
+# Server signature
+ServerSignature Off

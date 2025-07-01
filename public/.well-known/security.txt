@@ -1,0 +1,83 @@
+# Security Policy for TUMA - Secure Blockchain File Sharing Platform
+# https://tuma.app
+# Last Updated: 2024-12-19
+
+Contact: security@tuma.app
+Contact: https://tuma.app/security/report
+Expires: 2025-12-19T23:59:59.000Z
+Encryption: https://tuma.app/.well-known/pgp-key.txt
+Acknowledgments: https://tuma.app/security/hall-of-fame
+Preferred-Languages: en, es, fr, de, ja, zh
+Canonical: https://tuma.app/.well-known/security.txt
+Policy: https://tuma.app/security/policy
+
+# Security Reporting Guidelines
+# We take security seriously and appreciate responsible disclosure.
+# Please report security vulnerabilities through our secure channels.
+
+# Scope
+# In scope:
+# - tuma.app and all subdomains
+# - Mobile applications
+# - API endpoints
+# - Smart contracts
+# - Blockchain integrations
+
+# Out of scope:
+# - Social engineering attacks
+# - Physical attacks
+# - Denial of service attacks
+# - Issues in third-party dependencies (unless exploitable)
+
+# Response Time
+# We aim to respond to security reports within 24 hours
+# and provide regular updates on investigation progress.
+
+# Bug Bounty
+# We offer rewards for qualifying security vulnerabilities.
+# Visit https://tuma.app/security/bounty for details.
+
+# Security Features
+# - End-to-end encryption
+# - Zero-knowledge architecture
+# - Blockchain-based verification
+# - Multi-signature security
+# - Regular security audits
+
+# Compliance
+# TUMA adheres to:
+# - SOC 2 Type II
+# - ISO 27001
+# - GDPR
+# - CCPA
+# - HIPAA (Enterprise)
+
+# Security Audits
+# Latest audit: 2024-11-15
+# Auditor: CertiK
+# Report: https://tuma.app/security/audit-2024
+
+# Incident Response
+# In case of security incidents:
+# 1. Immediate containment
+# 2. User notification within 72 hours
+# 3. Transparent communication
+# 4. Post-incident analysis
+
+# Security Team
+# Our security team is available 24/7
+# Emergency contact: +1-555-TUMA-SEC
+# Signal: +1-555-TUMA-911
+
+# Additional Resources
+# Security documentation: https://docs.tuma.app/security
+# Threat model: https://tuma.app/security/threat-model
+# Security whitepaper: https://tuma.app/whitepaper/security
+
+# PGP Key Fingerprint
+# 4096R/ABCD1234 2024-01-01
+# Key fingerprint = 1234 5678 9ABC DEF0 1234  5678 9ABC DEF0 ABCD 1234
+
+# Hiring
+# Interested in security? We're hiring!
+# https://tuma.app/careers/security

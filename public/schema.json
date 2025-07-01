@@ -1,0 +1,739 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://tuma.app/#software",
+      "name": "TUMA - Secure Blockchain File Sharing",
+      "alternateName": [
+        "TUMA App",
+        "TUMA Platform",
+        "TUMA Secure File Sharing",
+        "TUMA Blockchain Storage"
+      ],
+      "description": "Revolutionary blockchain-powered secure file sharing platform with military-grade encryption, permanent Arweave storage, and Web3 wallet integration. Share documents securely with one-time payments and true data ownership.",
+      "applicationCategory": [
+        "BusinessApplication",
+        "SecurityApplication",
+        "ProductivityApplication",
+        "UtilitiesApplication"
+      ],
+      "applicationSubCategory": [
+        "File Sharing",
+        "Document Management",
+        "Secure Communication",
+        "Blockchain Storage",
+        "Web3 Application"
+      ],
+      "operatingSystem": [
+        "Windows",
+        "macOS",
+        "Linux",
+        "iOS",
+        "Android",
+        "Web Browser"
+      ],
+      "url": "https://tuma.app",
+      "downloadUrl": [
+        "https://apps.apple.com/app/tuma/id123456789",
+        "https://play.google.com/store/apps/details?id=com.tuma.app",
+        "https://tuma.app/download"
+      ],
+      "installUrl": "https://tuma.app/install",
+      "screenshot": [
+        "https://tuma.app/images/screenshots/dashboard.png",
+        "https://tuma.app/images/screenshots/file-sharing.png",
+        "https://tuma.app/images/screenshots/wallet-connect.png",
+        "https://tuma.app/images/screenshots/security-features.png",
+        "https://tuma.app/images/screenshots/mobile-app.png"
+      ],
+      "video": [
+        {
+          "@type": "VideoObject",
+          "name": "TUMA Platform Demo",
+          "description": "Complete walkthrough of TUMA's secure file sharing features",
+          "thumbnailUrl": "https://tuma.app/images/video-thumbnails/demo.jpg",
+          "contentUrl": "https://tuma.app/videos/tuma-demo.mp4",
+          "embedUrl": "https://tuma.app/embed/demo",
+          "duration": "PT5M30S",
+          "uploadDate": "2024-12-01"
+        }
+      ],
+      "featureList": [
+        "Military-grade end-to-end encryption",
+        "Permanent storage on Arweave blockchain",
+        "Web3 wallet integration (MetaMask, WalletConnect)",
+        "One-time payment model",
+        "Zero-knowledge architecture",
+        "AI Shield protection against malicious files",
+        "Instant wallet-to-wallet sharing",
+        "True data ownership",
+        "Cross-platform compatibility",
+        "Enterprise-grade security",
+        "HIPAA and SOX compliance ready",
+        "Multi-signature support",
+        "Decentralized storage",
+        "Immutable file records",
+        "Global CDN delivery"
+      ],
+      "requirements": [
+        "Web3 wallet (MetaMask, WalletConnect, etc.)",
+        "Internet connection",
+        "Modern web browser or mobile app",
+        "Cryptocurrency for storage payments (AR, ETH, MATIC)"
+      ],
+      "softwareVersion": "2.1.0",
+      "releaseNotes": "https://tuma.app/release-notes",
+      "datePublished": "2024-01-15",
+      "dateModified": "2024-12-19",
+      "author": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "creator": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "maintainer": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "Personal Plan",
+          "description": "Perfect for individual users and small file sharing needs",
+          "price": "0.00",
+          "priceCurrency": "USD",
+          "priceSpecification": {
+            "@type": "PriceSpecification",
+            "price": "0.00",
+            "priceCurrency": "USD",
+            "valueAddedTaxIncluded": false
+          },
+          "availability": "https://schema.org/InStock",
+          "validFrom": "2024-01-15",
+          "category": "Free Tier",
+          "eligibleQuantity": {
+            "@type": "QuantitativeValue",
+            "value": "100",
+            "unitText": "MB per month"
+          }
+        },
+        {
+          "@type": "Offer",
+          "name": "Pro Plan",
+          "description": "Advanced features for power users and small businesses",
+          "price": "9.99",
+          "priceCurrency": "USD",
+          "priceSpecification": {
+            "@type": "PriceSpecification",
+            "price": "9.99",
+            "priceCurrency": "USD",
+            "billingPeriod": "P1M",
+            "valueAddedTaxIncluded": false
+          },
+          "availability": "https://schema.org/InStock",
+          "validFrom": "2024-01-15",
+          "category": "Subscription",
+          "eligibleQuantity": {
+            "@type": "QuantitativeValue",
+            "value": "10",
+            "unitText": "GB per month"
+          }
+        },
+        {
+          "@type": "Offer",
+          "name": "Enterprise Plan",
+          "description": "Custom solutions for large organizations with advanced compliance needs",
+          "price": "99.99",
+          "priceCurrency": "USD",
+          "priceSpecification": {
+            "@type": "PriceSpecification",
+            "price": "99.99",
+            "priceCurrency": "USD",
+            "billingPeriod": "P1M",
+            "valueAddedTaxIncluded": false
+          },
+          "availability": "https://schema.org/InStock",
+          "validFrom": "2024-01-15",
+          "category": "Enterprise",
+          "eligibleQuantity": {
+            "@type": "QuantitativeValue",
+            "value": "1000",
+            "unitText": "GB per month"
+          }
+        }
+      ],
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "bestRating": "5",
+        "worstRating": "1",
+        "ratingCount": "2847",
+        "reviewCount": "1923"
+      },
+      "review": [
+        {
+          "@type": "Review",
+          "author": {
+            "@type": "Person",
+            "name": "Sarah Chen",
+            "jobTitle": "CISO",
+            "worksFor": "TechCorp Inc."
+          },
+          "datePublished": "2024-12-10",
+          "reviewBody": "TUMA has revolutionized how we handle sensitive document sharing. The blockchain-based permanent storage gives us confidence that our files are truly secure and will be accessible for years to come. The Web3 integration is seamless.",
+          "reviewRating": {
+            "@type": "Rating",
+            "ratingValue": "5",
+            "bestRating": "5"
+          }
+        },
+        {
+          "@type": "Review",
+          "author": {
+            "@type": "Person",
+            "name": "Marcus Rodriguez",
+            "jobTitle": "Blockchain Developer",
+            "worksFor": "Web3 Innovations"
+          },
+          "datePublished": "2024-12-08",
+          "reviewBody": "As a developer, I appreciate TUMA's technical architecture. The Arweave integration is brilliant, and the one-time payment model makes so much more sense than recurring subscriptions. The API is well-documented too.",
+          "reviewRating": {
+            "@type": "Rating",
+            "ratingValue": "5",
+            "bestRating": "5"
+          }
+        },
+        {
+          "@type": "Review",
+          "author": {
+            "@type": "Person",
+            "name": "Emily Watson",
+            "jobTitle": "Legal Counsel",
+            "worksFor": "Harrison & Associates"
+          },
+          "datePublished": "2024-12-05",
+          "reviewBody": "TUMA's compliance features are exactly what we needed for our legal practice. HIPAA compliance, immutable records, and the ability to prove document integrity through blockchain verification is game-changing.",
+          "reviewRating": {
+            "@type": "Rating",
+            "ratingValue": "5",
+            "bestRating": "5"
+          }
+        }
+      ],
+      "supportingData": {
+        "@type": "Dataset",
+        "name": "TUMA Security Audit Results",
+        "description": "Comprehensive security audit and penetration testing results",
+        "url": "https://tuma.app/security/audit-results",
+        "datePublished": "2024-11-15",
+        "publisher": {
+          "@type": "Organization",
+          "name": "CertiK Security",
+          "url": "https://certik.com"
+        }
+      },
+      "memoryRequirements": "512 MB RAM",
+      "storageRequirements": "100 MB available space",
+      "processorRequirements": "1 GHz processor or equivalent",
+      "permissions": [
+        "Internet access",
+        "File system access (for uploads)",
+        "Clipboard access (for sharing links)",
+        "Notification access"
+      ],
+      "countriesSupported": [
+        "US", "CA", "GB", "DE", "FR", "ES", "IT", "NL", "SE", "NO", "DK", "FI",
+        "AU", "NZ", "JP", "KR", "SG", "HK", "TW", "IN", "BR", "MX", "AR", "CL",
+        "CO", "PE", "ZA", "AE", "IL", "CH", "AT", "BE", "LU", "IE", "PT", "PL",
+        "CZ", "HU", "RO", "BG", "HR", "SI", "SK", "LT", "LV", "EE"
+      ],
+      "inLanguage": [
+        "en", "es", "fr", "de", "ja", "zh", "ko", "pt", "ru", "ar"
+      ]
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://tuma.app/#organization",
+      "name": "TUMA Technologies Inc.",
+      "alternateName": [
+        "TUMA",
+        "TUMA Tech",
+        "TUMA Inc."
+      ],
+      "description": "Leading blockchain technology company specializing in secure file sharing, decentralized storage solutions, and Web3 applications. Pioneering the future of data ownership and privacy.",
+      "url": "https://tuma.app",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://tuma.app/images/tuma-logo-512.png",
+        "width": 512,
+        "height": 512
+      },
+      "image": [
+        "https://tuma.app/images/tuma-logo-512.png",
+        "https://tuma.app/images/tuma-banner.jpg",
+        "https://tuma.app/images/team-photo.jpg",
+        "https://tuma.app/images/office-headquarters.jpg"
+      ],
+      "foundingDate": "2023-01-15",
+      "foundingLocation": {
+        "@type": "Place",
+        "name": "San Francisco, California, USA",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "San Francisco",
+          "addressRegion": "CA",
+          "addressCountry": "US"
+        }
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "123 Blockchain Avenue",
+        "addressLocality": "San Francisco",
+        "addressRegion": "CA",
+        "postalCode": "94105",
+        "addressCountry": "US"
+      },
+      "contactPoint": [
+        {
+          "@type": "ContactPoint",
+          "telephone": "+1-555-TUMA-APP",
+          "contactType": "customer service",
+          "availableLanguage": ["en", "es", "fr", "de", "ja", "zh"],
+          "hoursAvailable": {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+            ],
+            "opens": "00:00",
+            "closes": "23:59"
+          }
+        },
+        {
+          "@type": "ContactPoint",
+          "email": "support@tuma.app",
+          "contactType": "technical support",
+          "availableLanguage": ["en", "es", "fr", "de", "ja", "zh"]
+        },
+        {
+          "@type": "ContactPoint",
+          "email": "security@tuma.app",
+          "contactType": "security",
+          "availableLanguage": ["en"]
+        },
+        {
+          "@type": "ContactPoint",
+          "email": "enterprise@tuma.app",
+          "contactType": "sales",
+          "availableLanguage": ["en", "es", "fr", "de", "ja", "zh"]
+        }
+      ],
+      "sameAs": [
+        "https://twitter.com/TumaApp",
+        "https://linkedin.com/company/tuma-app",
+        "https://github.com/tuma-app",
+        "https://discord.gg/tuma",
+        "https://t.me/TumaOfficial",
+        "https://reddit.com/r/TumaApp",
+        "https://youtube.com/@TumaApp",
+        "https://medium.com/@tuma-app",
+        "https://dev.to/tuma-app",
+        "https://hashnode.com/@tuma-app"
+      ],
+      "founder": [
+        {
+          "@type": "Person",
+          "name": "Alex Chen",
+          "jobTitle": "CEO & Founder",
+          "description": "Blockchain entrepreneur with 10+ years in cybersecurity and distributed systems",
+          "sameAs": [
+            "https://linkedin.com/in/alexchen-tuma",
+            "https://twitter.com/alexchen_tuma"
+          ]
+        },
+        {
+          "@type": "Person",
+          "name": "Sarah Rodriguez",
+          "jobTitle": "CTO & Co-founder",
+          "description": "Former Google engineer specializing in cryptography and blockchain architecture",
+          "sameAs": [
+            "https://linkedin.com/in/sarahrod-tech",
+            "https://twitter.com/sarahrod_tech"
+          ]
+        }
+      ],
+      "employee": [
+        {
+          "@type": "Person",
+          "name": "Marcus Thompson",
+          "jobTitle": "Lead Security Engineer",
+          "description": "Cybersecurity expert with focus on cryptographic protocols"
+        },
+        {
+          "@type": "Person",
+          "name": "Emily Zhang",
+          "jobTitle": "Senior Frontend Developer",
+          "description": "UI/UX specialist with expertise in React and Web3 interfaces"
+        },
+        {
+          "@type": "Person",
+          "name": "David Kim",
+          "jobTitle": "Blockchain Engineer",
+          "description": "Smart contract developer and Arweave integration specialist"
+        }
+      ],
+      "numberOfEmployees": {
+        "@type": "QuantitativeValue",
+        "value": "25"
+      },
+      "industry": [
+        "Computer Software",
+        "Blockchain Technology",
+        "Cybersecurity",
+        "Cloud Storage",
+        "Web3 Applications"
+      ],
+      "naics": "541511",
+      "isicV4": "6201",
+      "duns": "123456789",
+      "leiCode": "TUMA123456789012345",
+      "vatID": "US123456789",
+      "taxID": "12-3456789",
+      "award": [
+        {
+          "@type": "Award",
+          "name": "Best Blockchain Security Solution 2024",
+          "description": "Recognized for innovative approach to decentralized file security",
+          "dateReceived": "2024-10-15",
+          "awardingOrganization": {
+            "@type": "Organization",
+            "name": "Blockchain Innovation Awards"
+          }
+        },
+        {
+          "@type": "Award",
+          "name": "Top 50 Web3 Startups 2024",
+          "description": "Listed among the most promising Web3 companies",
+          "dateReceived": "2024-09-20",
+          "awardingOrganization": {
+            "@type": "Organization",
+            "name": "Web3 Ventures Magazine"
+          }
+        }
+      ],
+      "funding": {
+        "@type": "MonetaryAmount",
+        "currency": "USD",
+        "value": "5000000"
+      },
+      "investors": [
+        {
+          "@type": "Organization",
+          "name": "Blockchain Capital",
+          "description": "Leading venture capital firm focused on blockchain technology"
+        },
+        {
+          "@type": "Organization",
+          "name": "Arweave Ventures",
+          "description": "Investment arm of the Arweave ecosystem"
+        }
+      ],
+      "parentOrganization": null,
+      "subOrganization": [
+        {
+          "@type": "Organization",
+          "name": "TUMA Security Labs",
+          "description": "Research division focused on advanced cryptographic protocols"
+        },
+        {
+          "@type": "Organization",
+          "name": "TUMA Enterprise Solutions",
+          "description": "Business unit serving enterprise customers"
+        }
+      ],
+      "knowsAbout": [
+        "Blockchain Technology",
+        "Arweave Permanent Storage",
+        "Web3 Applications",
+        "Cryptography",
+        "File Sharing Security",
+        "Decentralized Storage",
+        "Smart Contracts",
+        "Digital Privacy",
+        "Data Ownership",
+        "Enterprise Security",
+        "HIPAA Compliance",
+        "SOX Compliance",
+        "Zero-Knowledge Proofs",
+        "Multi-Signature Wallets",
+        "Cross-Chain Interoperability"
+      ],
+      "hasCredential": [
+        {
+          "@type": "EducationalOccupationalCredential",
+          "name": "SOC 2 Type II Certification",
+          "description": "Security and availability controls certification",
+          "credentialCategory": "Security Certification",
+          "recognizedBy": {
+            "@type": "Organization",
+            "name": "American Institute of CPAs"
+          }
+        },
+        {
+          "@type": "EducationalOccupationalCredential",
+          "name": "ISO 27001 Certification",
+          "description": "Information security management system certification",
+          "credentialCategory": "Security Certification",
+          "recognizedBy": {
+            "@type": "Organization",
+            "name": "International Organization for Standardization"
+          }
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://tuma.app/#website",
+      "name": "TUMA - Secure Blockchain File Sharing Platform",
+      "alternateName": "TUMA App",
+      "description": "Revolutionary blockchain-powered secure file sharing platform with military-grade encryption, permanent Arweave storage, and Web3 wallet integration.",
+      "url": "https://tuma.app",
+      "inLanguage": ["en", "es", "fr", "de", "ja", "zh", "ko", "pt", "ru", "ar"],
+      "isAccessibleForFree": true,
+      "hasPart": [
+        {
+          "@type": "WebPage",
+          "name": "TUMA Landing Page",
+          "url": "https://tuma.app/",
+          "description": "Main landing page showcasing TUMA's secure file sharing features"
+        },
+        {
+          "@type": "WebPage",
+          "name": "Send Files",
+          "url": "https://tuma.app/send",
+          "description": "Secure file upload and sharing interface"
+        },
+        {
+          "@type": "WebPage",
+          "name": "Document Vault",
+          "url": "https://tuma.app/vault",
+          "description": "Personal document storage and management"
+        },
+        {
+          "@type": "WebPage",
+          "name": "Enterprise Solutions",
+          "url": "https://tuma.app/enterprise",
+          "description": "Business-grade secure file sharing solutions"
+        },
+        {
+          "@type": "WebPage",
+          "name": "API Documentation",
+          "url": "https://docs.tuma.app",
+          "description": "Developer resources and API documentation"
+        },
+        {
+          "@type": "WebPage",
+          "name": "Security Center",
+          "url": "https://tuma.app/security",
+          "description": "Security features, audits, and compliance information"
+        },
+        {
+          "@type": "WebPage",
+          "name": "TUMA Blog",
+          "url": "https://tuma.app/blog",
+          "description": "Latest news, updates, and insights about blockchain file sharing"
+        }
+      ],
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://tuma.app/search?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        },
+        {
+          "@type": "ShareAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://tuma.app/send"
+          },
+          "object": {
+            "@type": "DigitalDocument",
+            "name": "File to Share"
+          }
+        }
+      ],
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "copyrightHolder": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "copyrightYear": "2024",
+      "license": "https://tuma.app/terms",
+      "accessibilityAPI": ["ARIA"],
+      "accessibilityControl": ["fullKeyboardControl", "fullMouseControl", "fullTouchControl"],
+      "accessibilityFeature": [
+        "alternativeText",
+        "captions",
+        "describedMath",
+        "longDescription",
+        "resizeText",
+        "structuralNavigation"
+      ],
+      "accessibilityHazard": ["noFlashingHazard", "noMotionSimulationHazard", "noSoundHazard"],
+      "accessibilitySummary": "TUMA platform is designed with accessibility in mind, featuring keyboard navigation, screen reader support, and WCAG 2.1 AA compliance."
+    },
+    {
+      "@type": "Service",
+      "@id": "https://tuma.app/#service",
+      "name": "TUMA Secure File Sharing Service",
+      "description": "Professional secure file sharing service powered by blockchain technology, offering permanent storage, military-grade encryption, and Web3 integration for individuals and enterprises.",
+      "provider": {
+        "@type": "Organization",
+        "@id": "https://tuma.app/#organization"
+      },
+      "serviceType": [
+        "File Sharing",
+        "Cloud Storage",
+        "Document Management",
+        "Secure Communication",
+        "Blockchain Storage",
+        "Web3 Services"
+      ],
+      "category": [
+        "Business Services",
+        "Technology Services",
+        "Security Services",
+        "Storage Services"
+      ],
+      "audience": [
+        {
+          "@type": "Audience",
+          "audienceType": "Business",
+          "name": "Enterprise Customers",
+          "description": "Large organizations requiring secure document sharing and compliance"
+        },
+        {
+          "@type": "Audience",
+          "audienceType": "Professional",
+          "name": "Legal Professionals",
+          "description": "Lawyers, paralegals, and legal firms handling sensitive documents"
+        },
+        {
+          "@type": "Audience",
+          "audienceType": "Professional",
+          "name": "Healthcare Providers",
+          "description": "Medical professionals requiring HIPAA-compliant file sharing"
+        },
+        {
+          "@type": "Audience",
+          "audienceType": "Professional",
+          "name": "Financial Services",
+          "description": "Banks, investment firms, and financial advisors"
+        },
+        {
+          "@type": "Audience",
+          "audienceType": "Consumer",
+          "name": "Individual Users",
+          "description": "Privacy-conscious individuals seeking secure file sharing"
+        },
+        {
+          "@type": "Audience",
+          "audienceType": "Professional",
+          "name": "Developers",
+          "description": "Software developers and Web3 enthusiasts"
+        }
+      ],
+      "areaServed": {
+        "@type": "Place",
+        "name": "Worldwide",
+        "description": "Global service available in 150+ countries"
+      },
+      "availableChannel": [
+        {
+          "@type": "ServiceChannel",
+          "name": "Web Application",
+          "url": "https://tuma.app",
+          "serviceUrl": "https://tuma.app/send",
+          "availableLanguage": ["en", "es", "fr", "de", "ja", "zh"]
+        },
+        {
+          "@type": "ServiceChannel",
+          "name": "Mobile App - iOS",
+          "url": "https://apps.apple.com/app/tuma/id123456789",
+          "availableLanguage": ["en", "es", "fr", "de", "ja", "zh"]
+        },
+        {
+          "@type": "ServiceChannel",
+          "name": "Mobile App - Android",
+          "url": "https://play.google.com/store/apps/details?id=com.tuma.app",
+          "availableLanguage": ["en", "es", "fr", "de", "ja", "zh"]
+        },
+        {
+          "@type": "ServiceChannel",
+          "name": "API Integration",
+          "url": "https://docs.tuma.app",
+          "serviceUrl": "https://api.tuma.app",
+          "availableLanguage": ["en"]
+        }
+      ],
+      "hoursAvailable": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+        ],
+        "opens": "00:00",
+        "closes": "23:59",
+        "description": "24/7 service availability with 99.99% uptime guarantee"
+      },
+      "slogan": "Secure • Permanent • Decentralized",
+      "termsOfService": "https://tuma.app/terms",
+      "serviceOutput": {
+        "@type": "Thing",
+        "name": "Secure File Sharing",
+        "description": "Encrypted, permanently stored files with blockchain verification"
+      },
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "TUMA Service Plans",
+        "itemListElement": [
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Personal Plan",
+              "description": "Basic secure file sharing for individual users"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Pro Plan",
+              "description": "Advanced features for power users and small businesses"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Enterprise Plan",
+              "description": "Custom solutions for large organizations"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

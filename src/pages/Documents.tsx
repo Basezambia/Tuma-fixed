@@ -5,10 +5,13 @@ import { toast } from "sonner";
 import Header from "@/components/Header";
 import { arweaveService, StoredFile } from "@/lib/arweave-service";
 import { useAccount } from 'wagmi';
+import { Avatar } from '@coinbase/onchainkit/identity';
+import { base } from 'wagmi/chains';
 import { decryptFileBufferHKDF, decryptFileForMultipleRecipients, decryptMetadata } from '../lib/encryption';
 import { format as formatDateFns } from 'date-fns';
 import { fetchPaymentStatus, PaymentStatus } from "@/lib/payment-status";
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface FileWithPayment extends StoredFile {
   isPaid?: boolean;
@@ -30,6 +33,7 @@ const Documents = () => {
   const { address: userAddress } = useAccount();
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Handle URL parameters for tab selection
   useEffect(() => {
@@ -392,31 +396,31 @@ const Documents = () => {
     <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 dark:from-[#191919] dark:to-[#191919] page-transition">
       <Header />
       
-      <main className="pt-28 px-6 pb-16 max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">Your Files</h1>
-          <p className="text-doc-medium-gray">View and manage all your sent and received files</p>
+      <main className="pt-20 sm:pt-28 px-4 sm:px-6 pb-12 sm:pb-16 max-w-7xl mx-auto">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">Your Files</h1>
+          <p className="text-sm sm:text-base text-doc-medium-gray">View and manage all your sent and received files</p>
         </div>
         
-        <div className="glass-panel p-6">
-          <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
+        <div className="glass-panel p-4 sm:p-6">
+          <div className="flex flex-col gap-4 mb-4 sm:mb-6">
             <div className="relative max-w-md w-full">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={18} className="text-doc-medium-gray" />
+                <Search size={16} className="text-doc-medium-gray sm:w-[18px] sm:h-[18px]" />
               </div>
               <input
                 type="text"
                 placeholder="Search files..."
-                className="pl-10 pr-4 py-2 w-full border-none bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-gray-800 dark:text-white"
+                className="pl-9 sm:pl-10 pr-4 py-2 w-full border-none bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm sm:text-base text-gray-800 dark:text-white"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-1">
-                <span className="text-sm text-doc-medium-gray mr-2">Sort by:</span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs sm:text-sm text-doc-medium-gray whitespace-nowrap">Sort by:</span>
                 <select
-                  className="bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg border-none px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="flex-1 sm:flex-none bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg border-none px-2 sm:px-3 py-2 text-xs sm:text-sm text-gray-800 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none"
                   value={sortKey}
                   onChange={e => setSortKey(e.target.value as typeof sortKey)}
                 >
@@ -431,43 +435,44 @@ const Documents = () => {
               <div className="flex items-center gap-1 bg-white dark:bg-gray-700 bg-opacity-80 rounded-lg p-1">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded transition-colors ${
+                  className={`p-1.5 sm:p-2 rounded transition-colors ${
                     viewMode === 'list'
                       ? 'bg-blue-500 text-white'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                   title="List view"
                 >
-                  <List size={16} />
+                  <List size={14} className="sm:w-4 sm:h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded transition-colors ${
+                  className={`p-1.5 sm:p-2 rounded transition-colors ${
                     viewMode === 'grid'
                       ? 'bg-blue-500 text-white'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                   title="Grid view"
                 >
-                  <Grid size={16} />
+                  <Grid size={14} className="sm:w-4 sm:h-4" />
                 </button>
               </div>
             </div>
           </div>
           
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full dark:bg-gray-900 dark:p-4 dark:rounded-lg">
-            <TabsList className="mb-6">
-              <TabsTrigger value="received" className="flex items-center gap-2">
-                <ArrowDownToLine size={16} />
-                <span>Received</span>
-                <span className="ml-1 bg-doc-soft-blue text-doc-deep-blue text-xs px-1.5 py-0.5 rounded-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full dark:bg-gray-900 dark:p-3 sm:dark:p-4 dark:rounded-lg">
+            <TabsList className="mb-4 sm:mb-6 w-full">
+              <TabsTrigger value="received" className="flex items-center gap-1 sm:gap-2 flex-1 text-xs sm:text-sm">
+                <ArrowDownToLine size={14} className="sm:size-4" />
+                <span className="hidden sm:inline">Received</span>
+                <span className="sm:hidden">Rec.</span>
+                <span className="ml-1 bg-doc-soft-blue text-doc-deep-blue text-xs px-1 sm:px-1.5 py-0.5 rounded-full">
                   {receivedDocs.length}
                 </span>
               </TabsTrigger>
-              <TabsTrigger value="sent" className="flex items-center gap-2">
-                <ArrowUpToLine size={16} />
+              <TabsTrigger value="sent" className="flex items-center gap-1 sm:gap-2 flex-1 text-xs sm:text-sm">
+                <ArrowUpToLine size={14} className="sm:size-4" />
                 <span>Sent</span>
-                <span className="ml-1 bg-doc-soft-blue text-doc-deep-blue text-xs px-1.5 py-0.5 rounded-full">
+                <span className="ml-1 bg-doc-soft-blue text-doc-deep-blue text-xs px-1 sm:px-1.5 py-0.5 rounded-full">
                   {sentDocs.length}
                 </span>
               </TabsTrigger>
@@ -475,92 +480,170 @@ const Documents = () => {
             
             <TabsContent value="received" className="mt-0 dark:bg-gray-900">
               {loading ? (
-                <div className="py-12 text-center">
-                  <div className="animate-spin mx-auto h-12 w-12 border-4 border-doc-deep-blue border-t-transparent rounded-full"></div>
-                  <h3 className="mt-4 text-lg font-medium">Loading files...</h3>
+                <div className="py-8 sm:py-12 text-center">
+                  <div className="animate-spin mx-auto h-8 w-8 sm:h-12 sm:w-12 border-4 border-doc-deep-blue border-t-transparent rounded-full"></div>
+                  <h3 className="mt-3 sm:mt-4 text-base sm:text-lg font-medium">Loading files...</h3>
                 </div>
               ) : error ? (
-                <div className="py-12 text-center">
-                  <AlertCircle className="mx-auto h-12 w-12 text-red-500 opacity-80" />
-                  <h3 className="mt-4 text-lg font-medium">Error loading files</h3>
-                  <p className="mt-1 text-doc-medium-gray">{error}</p>
+                <div className="py-8 sm:py-12 text-center">
+                  <AlertCircle className="mx-auto h-8 w-8 sm:h-12 sm:w-12 text-red-500 opacity-80" />
+                  <h3 className="mt-3 sm:mt-4 text-base sm:text-lg font-medium">Error loading files</h3>
+                  <p className="mt-1 text-sm sm:text-base text-doc-medium-gray">{error}</p>
                 </div>
               ) : filteredReceived.length > 0 ? (
                 <div className="bg-white dark:bg-[#191919]">
                   {viewMode === 'list' ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Sender</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paginatedReceived.map((doc) => (
-                            <tr 
-                              key={doc.id}
-                              className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
-                            >
-                              <td className="py-3 px-4">
-                                <div className="flex items-center">
-                                  <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
-                                  <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                    isMobile ? (
+                      // Mobile List View - Compact Cards
+                      <div className="space-y-3 p-3">
+                        {paginatedReceived.map((doc) => (
+                          <div 
+                            key={doc.id}
+                            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 hover:shadow-md transition-all duration-200"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center flex-1 min-w-0">
+                                <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                                <div className="ml-3 flex-1 min-w-0">
+                                  <h3 className="font-medium text-gray-900 dark:text-white text-sm truncate" title={doc.metadata.name}>
+                                    {doc.metadata.name}
+                                  </h3>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Avatar 
+                                      address={doc.metadata.sender as `0x${string}`} 
+                                      chain={base}
+                                      className="w-4 h-4"
+                                    />
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      From: {doc.metadata.sender.slice(0, 6)}...{doc.metadata.sender.slice(-4)}
+                                    </p>
+                                  </div>
                                 </div>
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray">
-                                {doc.metadata.sender.slice(0, 6)}...{doc.metadata.sender.slice(-4)}
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray">
-                                {formatDate(doc.metadata.timestamp)}
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray">
-                                {formatFileSize(doc.metadata.size)}
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
-                                {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex space-x-2">
-                                  <button 
-                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                    title="View document"
-                                    onClick={() => {
-                                      // For multi-recipient files, pass the current user's address as recipient
-                                      const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
-                                        typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
-                                        r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
-                                      ) ? userAddress : doc.metadata.recipient;
-                                      downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
-                                    }}
-                                  >
-                                    <FileSearch size={16} />
-                                  </button>
-                                  <button 
-                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                    title="Download"
-                                    onClick={() => {
-                                      // For multi-recipient files, pass the current user's address as recipient
-                                      const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
-                                        typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
-                                        r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
-                                      ) ? userAddress : doc.metadata.recipient;
-                                      downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
-                                    }}
-                                  >
-                                    <ArrowDownToLine size={16} />
-                                  </button>
-                                </div>
-                              </td>
+                              </div>
+                              <div className="flex items-center gap-2 ml-2">
+                                <button 
+                                  className="p-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                  title="View document"
+                                  onClick={() => {
+                                    const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                      typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                      r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                    ) ? userAddress : doc.metadata.recipient;
+                                    downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                  }}
+                                >
+                                  <FileSearch size={16} />
+                                </button>
+                                <button 
+                                  className="p-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                  title="Download"
+                                  onClick={() => {
+                                    const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                      typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                      r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                    ) ? userAddress : doc.metadata.recipient;
+                                    downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                  }}
+                                >
+                                  <ArrowDownToLine size={16} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span>{formatDate(doc.metadata.timestamp)}</span>
+                              <span>{formatFileSize(doc.metadata.size)}</span>
+                            </div>
+                            {doc.metadata.description && (
+                              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded p-2">
+                                {doc.metadata.description}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      // Desktop Table View
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Sender</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {paginatedReceived.map((doc) => (
+                              <tr 
+                                key={doc.id}
+                                className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
+                              >
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center">
+                                    <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                                    <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray">
+                                  <div className="flex items-center gap-2">
+                                    <Avatar 
+                                      address={doc.metadata.sender as `0x${string}`} 
+                                      chain={base}
+                                      className="w-5 h-5"
+                                    />
+                                    <span>{doc.metadata.sender.slice(0, 6)}...{doc.metadata.sender.slice(-4)}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray">
+                                  {formatDate(doc.metadata.timestamp)}
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray">
+                                  {formatFileSize(doc.metadata.size)}
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
+                                  {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex space-x-2">
+                                    <button 
+                                      className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                      title="View document"
+                                      onClick={() => {
+                                        // For multi-recipient files, pass the current user's address as recipient
+                                        const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                          typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                          r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                        ) ? userAddress : doc.metadata.recipient;
+                                        downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                      }}
+                                    >
+                                      <FileSearch size={16} />
+                                    </button>
+                                    <button 
+                                      className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                      title="Download"
+                                      onClick={() => {
+                                        // For multi-recipient files, pass the current user's address as recipient
+                                        const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                          typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                          r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                        ) ? userAddress : doc.metadata.recipient;
+                                        downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                      }}
+                                    >
+                                      <ArrowDownToLine size={16} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 p-2 sm:p-3">
                       {paginatedReceived.map((doc) => {
@@ -667,73 +750,133 @@ const Documents = () => {
               ) : filteredSent.length > 0 ? (
                 <div className="bg-white dark:bg-[#191919]">
                   {viewMode === 'list' ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Recipient</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
-                            <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paginatedSent.map((doc) => (
-                            <tr 
-                              key={doc.id}
-                              className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
-                            >
-                              <td className="py-3 px-4">
-                                <div className="flex items-center">
-                                  <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
-                                  <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                    isMobile ? (
+                      // Mobile List View - Compact Cards
+                      <div className="space-y-3 p-3">
+                        {paginatedSent.map((doc) => (
+                          <div 
+                            key={doc.id}
+                            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 hover:shadow-md transition-all duration-200"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center flex-1 min-w-0">
+                                <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                                <div className="ml-3 flex-1 min-w-0">
+                                  <h3 className="font-medium text-gray-900 dark:text-white text-sm truncate" title={doc.metadata.name}>
+                                    {doc.metadata.name}
+                                  </h3>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    To: {doc.metadata.recipient.slice(0, 6)}...{doc.metadata.recipient.slice(-4)}
+                                  </p>
                                 </div>
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray">
-                                {doc.metadata.recipient.slice(0, 6)}...{doc.metadata.recipient.slice(-4)}
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray">
-                                {formatDate(doc.metadata.timestamp)}
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray">
-                                {formatFileSize(doc.metadata.size)}
-                              </td>
-                              <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
-                                {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
-                                <div className="flex gap-2">
-                                  <button 
-                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                    title="Download"
-                                    onClick={() => {
-                                      // For multi-recipient files, pass the current user's address as recipient
-                                      const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
-                                        typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
-                                        r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
-                                      ) ? userAddress : doc.metadata.recipient;
-                                      downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
-                                    }}
-                                  >
-                                    <ArrowDownToLine size={16} />
-                                  </button>
-                                  <a 
-                                    href={`https://viewblock.io/arweave/tx/${doc.id}`} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
-                                  >
-                                    View Tx
-                                  </a>
-                                </div>
-                              </td>
+                              </div>
+                              <div className="flex items-center gap-2 ml-2">
+                                <button 
+                                  className="p-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                  title="Download"
+                                  onClick={() => {
+                                    const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                      typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                      r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                    ) ? userAddress : doc.metadata.recipient;
+                                    downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                  }}
+                                >
+                                  <ArrowDownToLine size={16} />
+                                </button>
+                                <a 
+                                  href={`https://viewblock.io/arweave/tx/${doc.id}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="p-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                  title="View Transaction"
+                                >
+                                  <ExternalLink size={16} />
+                                </a>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span>{formatDate(doc.metadata.timestamp)}</span>
+                              <span>{formatFileSize(doc.metadata.size)}</span>
+                            </div>
+                            {doc.metadata.description && (
+                              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded p-2">
+                                {doc.metadata.description}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      // Desktop Table View
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-200 dark:border-[#232323] bg-gray-100 dark:bg-[#191919]">
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Name</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Recipient</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Date</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Size</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Description</th>
+                              <th className="text-left py-3 px-4 font-medium text-doc-medium-gray">Actions</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {paginatedSent.map((doc) => (
+                              <tr 
+                                key={doc.id}
+                                className="file-row bg-white dark:bg-[#191919] hover:bg-gray-100 dark:hover:bg-[#232323] border-b border-gray-200 dark:border-[#232323] transition-colors duration-150"
+                              >
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center">
+                                    <DocumentIcon type={doc.metadata.type.split('/')[1] || 'file'} />
+                                    <span className="ml-3 font-medium">{doc.metadata.name}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray">
+                                  {doc.metadata.recipient.slice(0, 6)}...{doc.metadata.recipient.slice(-4)}
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray">
+                                  {formatDate(doc.metadata.timestamp)}
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray">
+                                  {formatFileSize(doc.metadata.size)}
+                                </td>
+                                <td className="py-3 px-4 text-doc-medium-gray max-w-xs truncate" title={doc.metadata.description || ''}>
+                                  {doc.metadata.description || <span className="text-gray-300 italic">-</span>}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
+                                  <div className="flex gap-2">
+                                    <button 
+                                      className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                      title="Download"
+                                      onClick={() => {
+                                        // For multi-recipient files, pass the current user's address as recipient
+                                        const recipientForDownload = doc.metadata.recipients && doc.metadata.recipients.some((r: any) => 
+                                          typeof r === 'string' ? r.toLowerCase() === userAddress?.toLowerCase() : 
+                                          r && typeof r === 'object' && r.address && r.address.toLowerCase() === userAddress?.toLowerCase()
+                                        ) ? userAddress : doc.metadata.recipient;
+                                        downloadFile(doc.id, doc.metadata.name, doc.metadata.iv, doc.metadata.sender, recipientForDownload);
+                                      }}
+                                    >
+                                      <ArrowDownToLine size={16} />
+                                    </button>
+                                    <a 
+                                      href={`https://viewblock.io/arweave/tx/${doc.id}`} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-doc-deep-blue"
+                                    >
+                                      View Tx
+                                    </a>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 p-2 sm:p-3">
                        {paginatedSent.map((doc) => {

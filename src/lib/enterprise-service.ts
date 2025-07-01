@@ -63,6 +63,13 @@ class EnterpriseService {
 
   async getUserOrganizations(userId: string): Promise<ApiResponse<UserOrganization[]>> {
     try {
+      // Check if userId is a wallet address (starts with 0x)
+      if (userId.startsWith('0x')) {
+        // For wallet addresses, return empty array since we don't have user mapping yet
+        // TODO: Implement proper wallet address to user ID mapping
+        return { success: true, data: [] };
+      }
+
       const { data, error } = await supabase
         .from('user_organizations')
         .select(`
@@ -100,6 +107,12 @@ class EnterpriseService {
     role: 'admin' | 'manager' | 'member'
   ): Promise<ApiResponse<UserOrganization>> {
     try {
+      // Check if userId is a wallet address (starts with 0x)
+      if (userId.startsWith('0x')) {
+        // For wallet addresses, return error since we need proper user mapping
+        return { success: false, error: 'Wallet address to user mapping not implemented yet' };
+      }
+
       const { data, error } = await supabase
         .from('user_organizations')
         .insert({
@@ -173,6 +186,12 @@ class EnterpriseService {
     permissionLevel: 'read' | 'write' | 'admin'
   ): Promise<ApiResponse<VaultPermission>> {
     try {
+      // Check if userId is a wallet address (starts with 0x)
+      if (userId.startsWith('0x')) {
+        // For wallet addresses, return error since we need proper user mapping
+        return { success: false, error: 'Wallet address to user mapping not implemented yet' };
+      }
+
       const { data: currentUser } = await supabase.auth.getUser();
       
       const { data, error } = await supabase

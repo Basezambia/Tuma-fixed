@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Menu, Moon, Sun, X, Bell, Building2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -28,7 +28,7 @@ import { enterpriseService } from '@/lib/enterprise-service';
 const NotificationBell = () => {
   const [hasNotification, setHasNotification] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{id: string, message: string, timestamp: number, type: 'sent' | 'received', fileId?: string}>>([]);
+  const [notifications, setNotifications] = useState<Array<{id: string, message: string, timestamp: number, type: 'sent' | 'received' | 'failed', fileId?: string}>>([]);
   const navigate = useNavigate();
   const { address: userAddress } = useAccount();
 
@@ -85,12 +85,23 @@ const NotificationBell = () => {
           type: 'sent' as const
         };
         setNotifications(prev => {
-          const updated = [newNotification, ...prev].slice(0, 4); // Keep only latest 5 notifications
+          const updated = [newNotification, ...prev].slice(0, 10); // Keep only latest 10 notifications
+          return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
+        });
+        setHasNotification(true);
+      } else if (error) {
+        const newNotification = {
+          id: Date.now().toString(),
+          message: `Failed to send file "${fileName}": ${error}`,
+          timestamp: Date.now(),
+          type: 'failed' as const
+        };
+        setNotifications(prev => {
+          const updated = [newNotification, ...prev].slice(0, 10); // Keep only latest 10 notifications
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
       }
-      // Don't show notification for failed uploads - they'll get error messages instead
     };
 
     window.addEventListener('uploadComplete', handleUploadComplete as EventListener);
@@ -112,7 +123,7 @@ const NotificationBell = () => {
             fileId: id
           };
           setNotifications(prev => {
-            const updated = [newNotification, ...prev].slice(0, 4); // Keep only latest 5 notifications
+            const updated = [newNotification, ...prev].slice(0, 10); // Keep only latest 10 notifications
             return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
           });
           setHasNotification(true);
@@ -132,7 +143,7 @@ const NotificationBell = () => {
           fileId: id
         };
         setNotifications(prev => {
-          const updated = [newNotification, ...prev].slice(0, 4); // Keep only latest 5 notifications
+          const updated = [newNotification, ...prev].slice(0, 10); // Keep only latest 10 notifications
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
@@ -161,7 +172,7 @@ const NotificationBell = () => {
           fileId: id
         };
         setNotifications(prev => {
-          const updated = [newNotification, ...prev].slice(0, 4); // Keep only latest 5 notifications
+          const updated = [newNotification, ...prev].slice(0, 10); // Keep only latest 10 notifications
           return updated.sort((a, b) => b.timestamp - a.timestamp); // Sort by latest first
         });
         setHasNotification(true);
@@ -176,15 +187,19 @@ const NotificationBell = () => {
     setShowNotifications(!showNotifications);
     if (hasNotification) {
       setHasNotification(false);
-      // Clear the notification state and notifications from localStorage when user checks notifications
+      // Only clear the red dot indicator, keep notifications visible
       if (userAddress) {
         const hasNotificationKey = `tuma_has_notification_${userAddress.toLowerCase()}`;
-        const notificationKey = `tuma_notifications_${userAddress.toLowerCase()}`;
         localStorage.setItem(hasNotificationKey, 'false');
-        // Clear all notifications when bell is clicked
-        localStorage.removeItem(notificationKey);
-        setNotifications([]);
       }
+    }
+  };
+
+  const clearAllNotifications = () => {
+    if (userAddress) {
+      const notificationKey = `tuma_notifications_${userAddress.toLowerCase()}`;
+      localStorage.removeItem(notificationKey);
+      setNotifications([]);
     }
   };
 
@@ -212,16 +227,26 @@ const NotificationBell = () => {
       
       {showNotifications && (
         <div className="absolute top-12 right-0 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h3 className="font-medium text-sm">Notifications</h3>
+            {notifications.length > 0 && (
+              <button
+                onClick={clearAllNotifications}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              >
+                Clear All
+              </button>
+            )}
           </div>
           <div className="max-h-64 overflow-y-auto">
             {notifications.length > 0 ? (
               notifications.map((notification) => (
                 <div 
                   key={notification.id} 
-                  className="p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                  onClick={() => handleNotificationClick(notification)}
+                  className={`p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                    notification.type !== 'failed' ? 'cursor-pointer' : ''
+                  }`}
+                  onClick={() => notification.type !== 'failed' && handleNotificationClick(notification)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -233,9 +258,11 @@ const NotificationBell = () => {
                     <div className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
                       notification.type === 'received' 
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                        : notification.type === 'failed'
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                         : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                     }`}>
-                      {notification.type === 'received' ? 'Received' : 'Sent'}
+                      {notification.type === 'received' ? 'Received' : notification.type === 'failed' ? 'Failed' : 'Sent'}
                     </div>
                   </div>
                 </div>
@@ -323,8 +350,10 @@ const Header = () => {
     } ${lastScrollY > 10 ? 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm' : 'bg-transparent'}`}>
       <div className="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 flex items-center justify-between h-16 min-w-0">
         <div className="flex items-center min-w-0 flex-shrink-0">
-          <NavLink to="/send" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap">
-            TUMA
+          <NavLink to="/send" className="flex items-center hover:opacity-80 transition-opacity">
+            <span className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white hover:text-teal-700 dark:hover:text-teal-400 transition-colors whitespace-nowrap">
+              TUMA
+            </span>
           </NavLink>
         </div>
 

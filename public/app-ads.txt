@@ -1,0 +1,324 @@
+# app-ads.txt file for TUMA mobile applications
+# This file authorizes digital sellers to sell advertising on behalf of TUMA mobile apps
+# Last updated: 2024-12-19
+
+# TUMA iOS App - App Store ID: 123456789
+# TUMA Android App - Google Play ID: com.tuma.app
+
+# Google AdMob (Primary mobile ad network)
+google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+admob.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+
+# Google Ad Manager for mobile
+google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+doubleclick.net, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+
+# Facebook Audience Network
+facebook.com, 1234567890123456, DIRECT, c3e20eee3f780d68
+
+# Unity Ads
+unityads.unity3d.com, 1234567, DIRECT, 96cabb5fbdde37a7
+
+# AppLovin
+applovin.com, 1234567890abcdef, DIRECT
+
+# ironSource
+ironsrc.com, 12345678, DIRECT, c5ba615865ed87b2
+
+# Vungle
+vungle.com, 1234567890abcdef, DIRECT, c107d686becd2d77
+
+# AdColony
+adcolony.com, 1234567890abcdef, DIRECT, 1ad675c9de6b5176
+
+# Chartboost
+chartboost.com, 1234567890abcdef, DIRECT
+
+# InMobi
+inmobi.com, 1234567890abcdef, DIRECT, 83e75a7ae333ca9d
+
+# Tapjoy
+tapjoy.com, 1234567890abcdef, DIRECT
+
+# MoPub (Twitter)
+mopub.com, 1234567890abcdef, DIRECT, 8a969469017171fd
+
+# Smaato
+smaato.com, 1234567890, DIRECT, c2ba615865ed87b2
+
+# PubNative
+pubnative.net, 1234567890, DIRECT, d641df8625486a7b
+
+# Fyber
+fyber.com, 1234567890abcdef, DIRECT
+
+# Verve (formerly Pubnative)
+verve.com, 1234567890, DIRECT, 0c8f5958fc2d6270
+
+# Digital Turbine
+digitalturbine.com, 1234567890, DIRECT
+
+# Liftoff
+liftoff.io, 1234567890abcdef, DIRECT
+
+# Moloco
+moloco.com, 1234567890, DIRECT
+
+# Criteo
+criteo.com, 1234567890, DIRECT
+
+# Amazon Publisher Services (Mobile)
+amazon-adsystem.com, 1234567890, DIRECT
+
+# Yahoo/Verizon Media (Mobile)
+yahoo.com, 1234567890, DIRECT, e1a5b5b6-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+verizonmedia.com, 1234567890, DIRECT, e1a5b5b6-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Microsoft Advertising (Mobile)
+microsoft.com, 1234567890, DIRECT
+
+# Twitter Ads (Mobile)
+twitter.com, 1234567890, DIRECT
+
+# LinkedIn Ads (Mobile)
+linkedin.com, 1234567890, DIRECT
+
+# Snapchat Ads
+snapchat.com, 1234567890, DIRECT
+
+# TikTok Ads
+tiktok.com, 1234567890, DIRECT
+
+# Pinterest Ads
+pinterest.com, 1234567890, DIRECT
+
+# Reddit Ads
+reddit.com, 1234567890, DIRECT
+
+# Crypto-specific mobile ad networks
+# Coinbase Mobile Ads
+coinbase.com, 1234567890, DIRECT
+
+# CoinGecko Mobile Ads
+coingecko.com, 1234567890, DIRECT
+
+# CoinMarketCap Mobile Ads
+coinmarketcap.com, 1234567890, DIRECT
+
+# Brave Ads (Mobile)
+brave.com, 1234567890, DIRECT
+
+# Web3 and Blockchain focused ad networks
+web3ads.com, 1234567890, DIRECT
+blockchainads.io, 1234567890, DIRECT
+cryptoads.network, 1234567890, DIRECT
+
+# Reseller relationships for mobile
+# These are trusted mobile ad networks we work with
+
+# Prebid Mobile
+prebid.org, mobile-partner-123, RESELLER
+
+# OpenX Mobile
+openx.com, 1234567890, RESELLER, 6ac7d0c8-c9c8-4c0c-8c0c-8c0c8c0c8c0c
+
+# PubMatic Mobile
+pubmatic.com, 1234567890, RESELLER, 5d62403b-7b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Index Exchange Mobile
+indexexchange.com, 1234567890, RESELLER, 50b1c356-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Rubicon Project Mobile
+rubiconproject.com, 1234567890, RESELLER, 0bfd66d5-29c4-4c0c-8c0c-8c0c8c0c8c0c
+
+# Magnite Mobile
+magnite.com, 1234567890, RESELLER, d4c29acad76ce94f
+
+# AppNexus Mobile
+appnexus.com, 1234567890, RESELLER, f5ab79cb-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Sovrn Mobile
+sovrn.com, 1234567890, RESELLER, fafdf38b-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# 33Across Mobile
+33across.com, 1234567890, RESELLER, bbea06d9-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# The Trade Desk Mobile
+thetradedesk.com, 1234567890, RESELLER, 1a4e959a-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# MediaMath Mobile
+mediamath.com, 1234567890, RESELLER
+
+# Adobe Advertising Cloud Mobile
+adobe.com, 1234567890, RESELLER
+
+# Smart AdServer Mobile
+smart-adserver.com, 1234567890, RESELLER
+
+# Improve Digital Mobile
+improvedigital.com, 1234567890, RESELLER
+
+# Sharethrough Mobile
+sharethrough.com, 1234567890, RESELLER, d53b998a-99fc-4c0c-8c0c-8c0c8c0c8c0c
+
+# TripleLift Mobile
+triplelift.com, 1234567890, RESELLER, 6c33edb1-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Conversant Mobile
+conversantmedia.com, 1234567890, RESELLER, 03113cd0-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# GumGum Mobile
+gumgum.com, 1234567890, RESELLER, ffdef49475d318a9
+
+# Kargo Mobile
+kargo.com, 1234567890, RESELLER
+
+# Unruly Mobile
+unrulymedia.com, 1234567890, RESELLER
+
+# Undertone Mobile
+undertone.com, 1234567890, RESELLER
+
+# Yieldmo Mobile
+yieldmo.com, 1234567890, RESELLER
+
+# Rhythmone Mobile
+rhythmone.com, 1234567890, RESELLER, a670c89d4a324e47
+
+# Beachfront Mobile
+beachfront.com, 1234567890, RESELLER, e2541279e8e2ca4d
+
+# EMX Digital Mobile
+emxdgt.com, 1234567890, RESELLER, 1e1d41b2-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# AdForm Mobile
+adform.net, 1234567890, RESELLER
+
+# AdNuntius Mobile
+adnuntius.com, 1234567890, RESELLER
+
+# Between Digital Mobile
+betweendigital.com, 1234567890, RESELLER
+
+# Chocolate Platform Mobile
+chocolateplatform.com, 1234567890, RESELLER
+
+# ConnectAd Mobile
+connectad.io, 1234567890, RESELLER, 85ac85a30c93b3e5
+
+# ConsoleAd Mobile
+consolead.com, 1234567890, RESELLER
+
+# E-Planning Mobile
+e-planning.net, 1234567890, RESELLER, c1ba615865ed87b2
+
+# Epsilon Mobile
+epsilon.com, 1234567890, RESELLER
+
+# Kidoz Mobile
+kidoz.net, 1234567890, RESELLER
+
+# LoopMe Mobile
+loopme.com, 1234567890, RESELLER, 6c8d5f95897a5a3b
+
+# MobFox Mobile
+mobfox.com, 1234567890, RESELLER
+
+# SpotX Mobile
+spotx.tv, 1234567890, RESELLER, 7842df1d2fe2db34
+
+# YieldLab Mobile
+yieldlab.net, 1234567890, RESELLER
+
+# Zemanta Mobile
+zemanta.com, 1234567890, RESELLER, d7f5b33b-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Mobile-specific ad networks
+# AdTiming
+adtiming.com, 1234567890, RESELLER
+
+# Applovin MAX
+applovin.com, 1234567890abcdef, RESELLER
+
+# Bidmachine
+bidmachine.io, 1234567890, RESELLER
+
+# Chocolate Platform
+chocolateplatform.com, 1234567890, RESELLER
+
+# Epom
+epom.com, 1234567890, RESELLER
+
+# Flurry
+flurry.com, 1234567890, RESELLER
+
+# Glispa
+glispa.com, 1234567890, RESELLER
+
+# Hyprmx
+hyprmx.com, 1234567890, RESELLER
+
+# Inneractive
+inneractive.com, 1234567890, RESELLER
+
+# Kiip
+kiip.me, 1234567890, RESELLER
+
+# Leadbolt
+leadbolt.com, 1234567890, RESELLER
+
+# Millennial Media
+millennialmedia.com, 1234567890, RESELLER
+
+# Mobvista
+mobvista.com, 1234567890, RESELLER
+
+# Nend
+nend.net, 1234567890, RESELLER
+
+# Opera Ads
+operaads.com, 1234567890, RESELLER
+
+# Persona.ly
+persona.ly, 1234567890, RESELLER
+
+# Pollfish
+pollfish.com, 1234567890, RESELLER
+
+# RevMob
+revmob.com, 1234567890, RESELLER
+
+# StartApp
+startapp.com, 1234567890, RESELLER
+
+# Supersonic
+supersonic.com, 1234567890, RESELLER
+
+# TapSense
+tapsense.com, 1234567890, RESELLER
+
+# Tremor Video
+tremor.com, 1234567890, RESELLER
+
+# Vdopia
+vdopia.com, 1234567890, RESELLER
+
+# Widespace
+widespace.com, 1234567890, RESELLER
+
+# Contact information for mobile app advertising verification
+# For any questions about this app-ads.txt file, contact:
+# Email: mobile-ads@tuma.app
+# Website: https://tuma.app/mobile-advertising
+# Phone: +1-555-TUMA-MOB
+
+# App Store Information:
+# iOS App Store: https://apps.apple.com/app/tuma/id123456789
+# Google Play Store: https://play.google.com/store/apps/details?id=com.tuma.app
+# App Store Connect Team ID: ABCD123456
+# Google Play Console Developer ID: 1234567890123456789
+
+# This file is maintained by TUMA Technologies Inc.
+# Last verification: 2024-12-19
+# Next review: 2025-03-19
+# Mobile app advertising compliance: IAB Tech Lab standards

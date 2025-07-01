@@ -1,0 +1,103 @@
+# Robots.txt for TUMA - Secure Blockchain File Sharing Platform
+# https://tuma.app
+
+# Allow all search engines to crawl the site
+User-agent: *
+Allow: /
+
+# Specific rules for major search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 2
+
+User-agent: DuckDuckBot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Baiduspider
+Allow: /
+Crawl-delay: 2
+
+User-agent: YandexBot
+Allow: /
+Crawl-delay: 2
+
+# AI and ML crawlers
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: YouBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# Block sensitive areas (if any exist)
+Disallow: /api/
+Disallow: /.env
+Disallow: /admin/
+Disallow: /private/
+Disallow: /temp/
+Disallow: /cache/
+
+# Allow access to important files
+Allow: /sitemap.xml
+Allow: /robots.txt
+Allow: /favicon.ico
+Allow: /*.css
+Allow: /*.js
+Allow: /*.png
+Allow: /*.jpg
+Allow: /*.jpeg
+Allow: /*.gif
+Allow: /*.svg
+Allow: /*.webp
+Allow: /*.ico
+
+# Sitemap location
+Sitemap: https://tuma.app/sitemap.xml
+Sitemap: https://tuma.app/sitemap-images.xml
+Sitemap: https://tuma.app/sitemap-news.xml
+
+# Host directive (preferred domain)
+Host: https://tuma.app
+
+# Crawl delay for general bots
+Crawl-delay: 1
+
+# Request rate (requests per second)
+Request-rate: 1/1s
+
+# Visit time (preferred crawling hours in UTC)
+Visit-time: 0100-0600
+
+# Clean URLs preference
+Clean-param: utm_source
+Clean-param: utm_medium
+Clean-param: utm_campaign
+Clean-param: utm_term
+Clean-param: utm_content
+Clean-param: fbclid
+Clean-param: gclid
+Clean-param: ref
+Clean-param: source

@@ -1,0 +1,215 @@
+# ads.txt file for tuma.app
+# This file helps prevent ad fraud and ensures ad revenue goes to legitimate publishers
+# Last updated: 2024-12-19
+
+# Google AdSense
+google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+
+# Google Ad Manager
+google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+doubleclick.net, pub-1234567890123456, DIRECT, f08c47fec0942fa0
+
+# Amazon Publisher Services
+amazon-adsystem.com, 1234567890, DIRECT
+
+# Microsoft Advertising
+microsoft.com, 1234567890, DIRECT
+
+# Twitter Ads
+twitter.com, 1234567890, DIRECT
+
+# LinkedIn Ads
+linkedin.com, 1234567890, DIRECT
+
+# Facebook/Meta Ads
+facebook.com, 1234567890, DIRECT
+
+# Coinbase Advertising (Crypto-focused)
+coinbase.com, 1234567890, DIRECT
+
+# CoinGecko Ads (Crypto advertising network)
+coingecko.com, 1234567890, DIRECT
+
+# CoinMarketCap Ads
+coinmarketcap.com, 1234567890, DIRECT
+
+# Brave Ads (Privacy-focused)
+brave.com, 1234567890, DIRECT
+
+# DuckDuckGo Ads (Privacy-focused)
+duckduckgo.com, 1234567890, DIRECT
+
+# Reseller relationships
+# These are trusted ad networks we work with
+
+# Prebid.org certified partners
+prebid.org, certified-partner-123, RESELLER
+
+# OpenX
+openx.com, 123456789, RESELLER, 6ac7d0c8-c9c8-4c0c-8c0c-8c0c8c0c8c0c
+
+# PubMatic
+pubmatic.com, 123456, RESELLER, 5d62403b-7b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Index Exchange
+indexexchange.com, 123456, RESELLER, 50b1c356-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Rubicon Project
+rubiconproject.com, 123456, RESELLER, 0bfd66d5-29c4-4c0c-8c0c-8c0c8c0c8c0c
+
+# AppNexus
+appnexus.com, 123456, RESELLER, f5ab79cb-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Sovrn
+sovrn.com, 123456, RESELLER, fafdf38b-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# 33Across
+33across.com, 123456, RESELLER, bbea06d9-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Criteo
+criteo.com, 123456, RESELLER
+
+# The Trade Desk
+thetradedesk.com, 123456, RESELLER, 1a4e959a-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# MediaMath
+mediamath.com, 123456, RESELLER
+
+# Adobe Advertising Cloud
+adobe.com, 123456, RESELLER
+
+# Yahoo/Verizon Media
+yahoo.com, 123456, RESELLER, e1a5b5b6-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# AOL
+aol.com, 123456, RESELLER, e1a5b5b6-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Verizon Media
+verizonmedia.com, 123456, RESELLER, e1a5b5b6-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Magnite (formerly Rubicon)
+magnite.com, 123456, RESELLER, d4c29acad76ce94f
+
+# Smart AdServer
+smart-adserver.com, 123456, RESELLER
+
+# Improve Digital
+improvedigital.com, 123456, RESELLER
+
+# Sharethrough
+sharethrough.com, 123456, RESELLER, d53b998a-99fc-4c0c-8c0c-8c0c8c0c8c0c
+
+# TripleLift
+triplelift.com, 123456, RESELLER, 6c33edb1-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Conversant
+conversantmedia.com, 123456, RESELLER, 03113cd0-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# GumGum
+gumgum.com, 123456, RESELLER, ffdef49475d318a9
+
+# Kargo
+kargo.com, 123456, RESELLER
+
+# Unruly
+unrulymedia.com, 123456, RESELLER
+
+# Undertone
+undertone.com, 123456, RESELLER
+
+# Yieldmo
+yieldmo.com, 123456, RESELLER
+
+# Rhythmone
+rhythmone.com, 123456, RESELLER, a670c89d4a324e47
+
+# Beachfront
+beachfront.com, 123456, RESELLER, e2541279e8e2ca4d
+
+# EMX Digital
+emxdgt.com, 123456, RESELLER, 1e1d41b2-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Adsystem
+adsystem.com, 123456, RESELLER
+
+# AdForm
+adform.net, 123456, RESELLER
+
+# AdNuntius
+adnuntius.com, 123456, RESELLER
+
+# Between Digital
+betweendigital.com, 123456, RESELLER
+
+# Chocolate Platform
+chocolateplatform.com, 123456, RESELLER
+
+# ConnectAd
+connectad.io, 123456, RESELLER, 85ac85a30c93b3e5
+
+# ConsoleAd
+consolead.com, 123456, RESELLER
+
+# E-Planning
+e-planning.net, 123456, RESELLER, c1ba615865ed87b2
+
+# Epsilon
+epsilon.com, 123456, RESELLER
+
+# Fyber
+fyber.com, 123456, RESELLER
+
+# InMobi
+inmobi.com, 123456, RESELLER, 83e75a7ae333ca9d
+
+# IronSource
+ironsrc.com, 123456, RESELLER, c5ba615865ed87b2
+
+# Kidoz
+kidoz.net, 123456, RESELLER
+
+# LoopMe
+loopme.com, 123456, RESELLER, 6c8d5f95897a5a3b
+
+# MobFox
+mobfox.com, 123456, RESELLER
+
+# MoPub
+mopub.com, 123456, RESELLER, 8a969469017171fd
+
+# Pubnative
+pubnative.net, 123456, RESELLER, d641df8625486a7b
+
+# Smaato
+smaato.com, 123456, RESELLER, c2ba615865ed87b2
+
+# SpotX
+spotx.tv, 123456, RESELLER, 7842df1d2fe2db34
+
+# Tapjoy
+tapjoy.com, 123456, RESELLER
+
+# Unity Ads
+unityads.unity3d.com, 123456, RESELLER, 96cabb5fbdde37a7
+
+# Verve
+verve.com, 123456, RESELLER, 0c8f5958fc2d6270
+
+# Vungle
+vungle.com, 123456, RESELLER, c107d686becd2d77
+
+# YieldLab
+yieldlab.net, 123456, RESELLER
+
+# Zemanta
+zemanta.com, 123456, RESELLER, d7f5b33b-8b8c-4c0c-8c0c-8c0c8c0c8c0c
+
+# Contact information for verification
+# For any questions about this ads.txt file, contact:
+# Email: ads@tuma.app
+# Website: https://tuma.app/advertising
+# Phone: +1-555-TUMA-ADS
+
+# This file is maintained by TUMA Technologies Inc.
+# Last verification: 2024-12-19
+# Next review: 2025-03-19

@@ -51,12 +51,13 @@ const Vault = () => {
     pricePerMBInAR: number;
     pricePerMBInUSD: number;
     pricePerMBInWinston: number;
+    arToUsdRate: number;
     timestamp: number;
     networkFactor: number;
   } | null>(null);
   const [isLoadingArweavePricing, setIsLoadingArweavePricing] = useState(false);
   const [arweavePricingError, setArweavePricingError] = useState<string | null>(null);
-  const [serviceFee, setServiceFee] = useState<string>('0.00');
+  const [serviceFee, setServiceFee] = useState<string | null>(null);
   const [fileSizeTier, setFileSizeTier] = useState<string | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showFileDetailsDialog, setShowFileDetailsDialog] = useState(false);
@@ -184,11 +185,19 @@ const Vault = () => {
     try {
       setIsLoadingArweavePricing(true);
       setArweavePricingError(null);
+      
       const response = await fetch('/api/getArweavePrice');
+      
       if (!response.ok) {
         throw new Error('Failed to fetch Arweave pricing');
       }
+      
       const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.message || 'API returned error');
+      }
+      
       setArweavePricing(data);
       return data;
     } catch (error) {
@@ -200,21 +209,48 @@ const Vault = () => {
     }
   }, []);
 
-  // Calculate dynamic pricing based on Arweave token price with 7% profit margin
+  // Calculate dynamic pricing based on Arweave token price with 20% profit margin
   const calculateDynamicPrice = useCallback((sizeMB: number, pricingData: any) => {
     if (!pricingData) return null;
     
-    // Base cost calculation using REAL Arweave pricing
-    const baseCostInUSD = sizeMB * pricingData.pricePerMBInUSD;
+    const sizeInBytes = sizeMB * 1024 * 1024;
     
-    // Apply network factor (represents network congestion, etc.)
-    const adjustedCostInUSD = baseCostInUSD * pricingData.networkFactor;
+    // Use ArDrive-inspired calculation with proper overhead and bundling fees
+    let baseCostWinston;
     
-    // Add 7% profit margin (reduced from 35%)
-    const totalCostWithMargin = adjustedCostInUSD * 1.07;
+    // Use tiered pricing for better accuracy
+    if (sizeInBytes <= 1024) {
+      // Small files: use 1KB pricing
+      baseCostWinston = Number(pricingData.uploadCosts?.['1KB']?.winston || pricingData.pricePerMBInWinston / 1024);
+    } else if (sizeInBytes <= 1024 * 1024) {
+      // Medium files: interpolate between 1KB and 1MB
+      const ratio = sizeInBytes / (1024 * 1024);
+      baseCostWinston = Number(pricingData.uploadCosts?.['1MB']?.winston || pricingData.pricePerMBInWinston) * ratio;
+    } else {
+      // Large files: use per-MB calculation with proper scaling
+      baseCostWinston = (Number(pricingData.uploadCosts?.['1MB']?.winston || pricingData.pricePerMBInWinston) / (1024 * 1024)) * sizeInBytes;
+    }
     
-    // Pure real-time Arweave pricing without artificial minimums
-    return totalCostWithMargin.toFixed(2);
+    // Apply ArDrive-style adjustments
+    const dataItemOverhead = Math.ceil(sizeInBytes * 0.001); // Data item structure overhead
+    const bundlingFee = Math.ceil(baseCostWinston * 0.05); // 5% bundling fee
+    const totalWinston = baseCostWinston + dataItemOverhead + bundlingFee;
+    
+    // Convert to USD
+    const totalAR = totalWinston / 1e12;
+    const baseCostInUSD = totalAR * pricingData.arToUsdRate;
+    
+    // Apply network factor for congestion
+    const adjustedCostInUSD = baseCostInUSD * (pricingData.networkFactor || 1.0);
+    
+    // Add service margin (15% instead of 20% for better competitiveness)
+    const totalCostWithMargin = adjustedCostInUSD * 1.15;
+    
+    // Ensure minimum viable pricing for very small files
+    const minimumPrice = 0.01; // $0.01 minimum
+    const finalPrice = Math.max(totalCostWithMargin, minimumPrice);
+    
+    return finalPrice.toFixed(2);
   }, []);
 
   // Calculate pricing for specific size tiers using real-time Arweave data
@@ -251,31 +287,30 @@ const Vault = () => {
       } else {
         // Over 5GB - not allowed
         tier = 'File too large';
-        fee = '0.00';
         toast.error('Maximum file size is 5GB');
         setFileSizeTier(tier);
-        setServiceFee(fee);
+        setServiceFee(null);
         return;
       }
       
-      // Calculate dynamic pricing for all file sizes
+      // Calculate dynamic pricing for all file sizes using real API prices only
       if (arweavePricing && arweavePricing.timestamp > Date.now() - 3600000) { // Cache for 1 hour
         const dynamicFee = calculateDynamicPrice(totalSizeMB, arweavePricing);
-        if (dynamicFee) {
-          fee = dynamicFee;
+        if (dynamicFee && parseFloat(dynamicFee) > 0) {
+          fee = dynamicFee; // Use actual API price only
         } else {
-          fee = '0.00'; // No artificial minimum
+          fee = null; // Wait for valid pricing
         }
       } else {
-        // Set loading state while fetching real-time data
-        fee = '0.00';
+        // Wait for real-time data, no fallback
+        fee = null;
         
         // Fetch fresh pricing data
         fetchArweavePricing().then(pricingData => {
           if (pricingData) {
             const dynamicFee = calculateDynamicPrice(totalSizeMB, pricingData);
-            if (dynamicFee) {
-              setServiceFee(dynamicFee);
+            if (dynamicFee && parseFloat(dynamicFee) > 0) {
+              setServiceFee(dynamicFee); // Use real API price only
             }
           }
         });
@@ -285,7 +320,7 @@ const Vault = () => {
       setServiceFee(fee);
     } else {
       setFileSizeTier(null);
-      setServiceFee('0.00');
+      setServiceFee(null); // No files, no fee
     }
   }, [selectedFiles, arweavePricing, calculateDynamicPrice, fetchArweavePricing, getTotalFileSize]);
 
@@ -311,6 +346,9 @@ const Vault = () => {
         throw new Error('No files selected for upload');
       }
 
+      if (!serviceFee) {
+        throw new Error('Pricing is still loading. Please wait for real-time pricing calculation.');
+      }
       const fee = Number(serviceFee);
       if (isNaN(fee) || fee <= 0) {
         throw new Error('Invalid service fee amount');
@@ -504,9 +542,20 @@ const Vault = () => {
       setShowPaymentDialog(false);
     } catch (error) {
       console.error("Upload error:", error);
-      setUploadError(error instanceof Error ? error.message : 'Unknown error');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setUploadError(errorMessage);
       toast.error("Failed to upload files");
       setShowPaymentDialog(false);
+      
+      // Dispatch failed upload event for notification
+      const failedEvent = new CustomEvent('uploadComplete', {
+        detail: {
+          fileName: selectedFiles[0]?.name || 'File',
+          success: false,
+          error: errorMessage
+        }
+      });
+      window.dispatchEvent(failedEvent);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -1011,61 +1060,64 @@ const Vault = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 dark:from-[#191919] dark:to-[#191919] page-transition">
       <Header />
-      <main className="pt-28 px-4 sm:px-6 pb-16 max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+      <main className="pt-16 sm:pt-20 lg:pt-28 px-3 sm:px-4 lg:px-6 pb-16 max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 lg:mb-8 space-y-3 sm:space-y-0">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight dark:text-white">Secure Vault</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Your encrypted file storage</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight dark:text-white">Secure Vault</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 sm:mt-2 text-xs sm:text-sm lg:text-base">Your encrypted file storage</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button 
               onClick={() => setShowUploadSection(true)} 
-              className="bg-orange-500 hover:bg-orange-600 shadow-lg"
+              className="bg-orange-500 hover:bg-orange-600 shadow-lg w-full sm:w-auto text-xs sm:text-sm lg:text-base px-3 sm:px-4"
+              size="sm"
             >
-              <Upload size={18} className="mr-2" />
-              Upload Files
+              <Upload size={14} className="mr-1 sm:mr-2 sm:size-4" />
+              <span className="hidden sm:inline">Upload Files</span>
+              <span className="sm:hidden">Upload</span>
             </Button>
-            <Button onClick={lockVault} variant="outline">
-              <Lock size={18} className="mr-2" />
-              Lock Vault
+            <Button onClick={lockVault} variant="outline" className="w-full sm:w-auto text-xs sm:text-sm lg:text-base px-3 sm:px-4" size="sm">
+              <Lock size={14} className="mr-1 sm:mr-2 sm:size-4" />
+              <span className="hidden sm:inline">Lock Vault</span>
+              <span className="sm:hidden">Lock</span>
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 sm:gap-6">
           {/* Main content area */}
-          <div className="lg:col-span-3">
+          <div className="xl:col-span-3">
             {/* Upload section - replaces vault contents when active */}
             {showUploadSection ? (
-              <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl rounded-2xl p-8">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-semibold dark:text-white">Upload Files</h2>
+              <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl rounded-2xl p-3 sm:p-4 lg:p-6 xl:p-8">
+                <div className="flex justify-between items-center mb-3 sm:mb-4 lg:mb-6">
+                  <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold dark:text-white">Upload Files</h2>
                   <Button onClick={() => {
                     setShowUploadSection(false);
                     setSelectedFiles([]);
                     setTotalSize(0);
                   }} variant="ghost" size="sm">
-                    <X size={18} />
+                    <X size={16} className="sm:size-[18px]" />
                   </Button>
                 </div>
                 
                 {isUploading && (
-                  <div className="mb-6">
-                    <div className="flex justify-between text-sm mb-2">
+                  <div className="mb-4 sm:mb-6">
+                    <div className="flex justify-between text-xs sm:text-sm mb-2">
                       <span className="text-gray-600 dark:text-gray-400">Storing files...</span>
                       <span className="text-gray-600 dark:text-gray-400">{uploadProgress.toFixed(0)}%</span>
                     </div>
-                    <Progress value={uploadProgress} className="h-3" />
+                    <Progress value={uploadProgress} className="h-2 sm:h-3" />
                   </div>
                 )}
                 
                 {selectedFiles.length === 0 ? (
                   <label className="cursor-pointer block">
-                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-12 text-center hover:border-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-900/10 transition-all duration-200">
-                      <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-900/30 rounded-full flex items-center justify-center mb-6">
-                        <Upload className="w-8 h-8 text-gray-600 dark:text-gray-400" />
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 sm:p-8 lg:p-12 text-center hover:border-gray-400 hover:bg-gray-50/50 dark:hover:bg-gray-900/10 transition-all duration-200">
+                      <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 dark:bg-gray-900/30 rounded-full flex items-center justify-center mb-4 sm:mb-6">
+                        <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-gray-600 dark:text-gray-400" />
                       </div>
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Drag and drop files, or click to select</h3>
+                      <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900 dark:text-white mb-2">Drag and drop files, or click to select</h3>
                       <input
                         type="file"
                         multiple
@@ -1207,45 +1259,45 @@ const Vault = () => {
               </div>
             ) : (
               /* Vault contents - only shown when upload section is hidden */
-              <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl rounded-2xl p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex items-center gap-4">
-                    <h2 className="text-2xl font-semibold dark:text-white">Vault Contents</h2>
+              <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl rounded-2xl p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-4 sm:space-y-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                    <h2 className="text-xl sm:text-2xl font-semibold dark:text-white">Vault Contents</h2>
                     {folderStack.length > 0 && (
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={goBack}
-                          className="h-8"
+                          className="h-8 text-xs sm:text-sm"
                         >
-                          <ArrowLeft size={16} className="mr-1" />
+                          <ArrowLeft size={14} className="mr-1" />
                           Back
                         </Button>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
                           {folderStack.map(folder => folder.name).join(' / ')}
                         </span>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-                      className="h-8"
+                      className="h-8 text-xs sm:text-sm px-2 sm:px-3"
                     >
-                      {viewMode === 'grid' ? <List size={16} className="mr-1" /> : <Grid size={16} className="mr-1" />}
-                      {viewMode === 'grid' ? 'List' : 'Grid'}
+                      {viewMode === 'grid' ? <List size={14} className="mr-1" /> : <Grid size={14} className="mr-1" />}
+                      <span className="hidden sm:inline">{viewMode === 'grid' ? 'List' : 'Grid'}</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setShowHiddenFiles(!showHiddenFiles)}
-                      className={showHiddenFiles ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400' : ''}
+                      className={`h-8 text-xs sm:text-sm px-2 sm:px-3 ${showHiddenFiles ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400' : ''}`}
                     >
-                      {showHiddenFiles ? <EyeOff size={16} className="mr-1" /> : <Eye size={16} className="mr-1" />}
-                      {showHiddenFiles ? 'Hide' : 'Show'}
+                      {showHiddenFiles ? <EyeOff size={14} className="mr-1" /> : <Eye size={14} className="mr-1" />}
+                      <span className="hidden sm:inline">{showHiddenFiles ? 'Hide' : 'Show'}</span>
                     </Button>
                   </div>
                 </div>
@@ -1261,7 +1313,7 @@ const Vault = () => {
                 ) : (
                   viewMode === 'grid' ? (
                     /* Grid View */
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
                       {getPaginatedFiles().map((file) => {
                         const isDeleted = deletedFiles.has(file.id);
                         
@@ -1445,24 +1497,25 @@ const Vault = () => {
                 
                 {/* Pagination Controls */}
                 {getVisibleFiles().length > 0 && (
-                  <div className="flex items-center justify-between mt-6 px-4">
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-4 sm:mt-6 px-2 sm:px-4 space-y-3 sm:space-y-0">
+                    <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left">
                       Showing {currentPage * filesPerPage + 1}-{Math.min((currentPage + 1) * filesPerPage, getVisibleFiles().length)} of {getVisibleFiles().length} files
                     </div>
                     
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center justify-center space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={handlePrevPage}
                         disabled={currentPage === 0}
-                        className="px-3 py-1"
+                        className="px-2 sm:px-3 py-1 text-xs sm:text-sm"
                       >
-                        Previous
+                        <span className="hidden sm:inline">Previous</span>
+                        <span className="sm:hidden">Prev</span>
                       </Button>
                       
-                      <span className="text-sm text-gray-500 dark:text-gray-400 px-2">
-                        Page {currentPage + 1} of {getTotalPages()}
+                      <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 px-1 sm:px-2">
+                        {currentPage + 1}/{getTotalPages()}
                       </span>
                       
                       <Button
@@ -1470,7 +1523,7 @@ const Vault = () => {
                         size="sm"
                         onClick={handleNextPage}
                         disabled={currentPage >= getTotalPages() - 1}
-                        className="px-3 py-1"
+                        className="px-2 sm:px-3 py-1 text-xs sm:text-sm"
                       >
                         Next
                       </Button>
@@ -1482,10 +1535,10 @@ const Vault = () => {
           </div>
 
           {/* Enhanced Sidebar - Made smaller with hover effects */}
-          <div className="space-y-4">
-            <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl rounded-2xl p-4 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-              <h3 className="text-base font-semibold mb-3 dark:text-white">Vault Statistics</h3>
-              <div className="space-y-3">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 border border-white/30 dark:border-gray-700/50 shadow-xl rounded-2xl p-3 sm:p-4 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+              <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-3 dark:text-white">Vault Statistics</h3>
+              <div className="space-y-2 sm:space-y-3">
                 <div 
                   className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/20 dark:to-gray-600/20 rounded-lg p-3 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-md flex items-center justify-between"
                   onClick={() => {
@@ -1555,7 +1608,9 @@ const Vault = () => {
                   </p>
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Service Fee</p>
-                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">${serviceFee} USDC</p>
+                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                      {serviceFee ? `$${serviceFee} USDC` : 'Calculating...'}
+                    </p>
                     {fileSizeTier && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         {fileSizeTier} • {(getTotalFileSize() / 1024 / 1024).toFixed(2)} MB

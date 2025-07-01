@@ -57,6 +57,7 @@ export interface FileMetadata {
   sender: string;
   recipient: string; // Keep for backward compatibility
   recipients?: string[]; // Add array for multiple recipients
+  recipientAddress?: string; // Add recipientAddress for Send.tsx compatibility
   timestamp: number;
   description?: string;
   iv?: string; // Add IV for decryption
@@ -65,6 +66,7 @@ export interface FileMetadata {
   documentId?: string; // Add documentId for HKDF salt
   parentFolderId?: string; // Add parentFolderId for folder structure
   fileCount?: number; // Add fileCount for folders
+  encryptionKey?: string; // Add encryptionKey for Send.tsx compatibility
 }
 
 export interface StoredFile {
@@ -503,139 +505,76 @@ class ArweaveService {
   /**
    * Get all received files for a user address
    * Uses Arweave GraphQL to find transactions where any Recipient-X == address or ENS/Base name
+   * Implements cursor-based pagination to fetch all results (Arweave limits to 100 per query)
    */
   async getReceivedFiles(address: string): Promise<StoredFile[]> {
     if (!address) return [];
     try {
       // Get all possible identifiers for this address (address + ENS/Base names)
       const recipientIdentifiers = await this.getAllRecipientIdentifiers(address);
-      // Searching for files with recipient identifiers
+      const identifiersList = recipientIdentifiers.map(id => `"${id}"`).join(', ');
       
-      // In getReceivedFiles, also search for Recipient-Name-X tags
-      const recipientQueries = Array.from({ length: 10 }, (_, i) => {
-        const identifiersList = recipientIdentifiers.map(id => `"${id}"`).join(', ');
-        return `
-        transactions${i}: transactions(
-          tags: [
-            { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-            { name: "Recipient-${i}", values: [${identifiersList}] }
-          ]
-          first: 10000
-        ) {
-          edges {
-            node {
-              id
-              tags {
-                name
-                value
-              }
-            }
-          }
-        }
-        transactionsName${i}: transactions(
-          tags: [
-            { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-            { name: "Recipient-Name-${i}", values: [${identifiersList}] }
-          ]
-          first: 100
-        ) {
-          edges {
-            node {
-              id
-              tags {
-                name
-                value
-              }
-            }
-          }
-        }`;
-      }).join('');
-      const query = {
-        query: `{${recipientQueries}}`
-      };
+      const allFiles: StoredFile[] = [];
+      const seenIds = new Set<string>();
       
-      const res = await fetch('https://arweave.net/graphql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(query)
-      });
-      
-      const json = await res.json();
-      
-      // Combine all results
-      const allEdges = [];
+      // Search for files in all recipient tag positions (0-9) and recipient name tags
       for (let i = 0; i < 10; i++) {
-        if (json.data[`transactions${i}`]) {
-          allEdges.push(...json.data[`transactions${i}`].edges);
-        }
-        if (json.data[`transactionsName${i}`]) {
-          allEdges.push(...json.data[`transactionsName${i}`].edges);
-        }
+        // Search Recipient-X tags
+        const recipientFiles = await this.fetchFilesWithPagination([
+          { name: "App-Name", values: ["TUMA-Document-Exchange"] },
+          { name: `Recipient-${i}`, values: recipientIdentifiers }
+        ]);
+        
+        // Search Recipient-Name-X tags
+        const recipientNameFiles = await this.fetchFilesWithPagination([
+          { name: "App-Name", values: ["TUMA-Document-Exchange"] },
+          { name: `Recipient-Name-${i}`, values: recipientIdentifiers }
+        ]);
+        
+        // Add unique files
+        [...recipientFiles, ...recipientNameFiles].forEach(file => {
+          if (!seenIds.has(file.id)) {
+            seenIds.add(file.id);
+            allFiles.push(file);
+          }
+        });
       }
       
-      // Remove duplicates
-      const uniqueEdges = allEdges.filter((edge, index, self) => 
-        index === self.findIndex(e => e.node.id === edge.node.id)
-      );
-      
-      return uniqueEdges.map((edge: any) => {
-        const tags: Record<string, string> = {};
-        edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
-        
-        // Extract all recipients from Recipient-X tags
-        const recipients: string[] = [];
-        for (let i = 0; i < 10; i++) {
-          const recipientTag = `Recipient-${i}`;
-          if (tags[recipientTag]) {
-            recipients.push(tags[recipientTag]);
-          }
-        }
-        
-        const metadata: FileMetadata = {
-          name: tags['Document-Name'] || '',
-          type: tags['Document-Type'] || '',
-          size: Number(tags['Document-Size']) || 0,
-          sender: tags['Sender'] || '',
-          recipient: tags['Recipient'] || tags['Recipient-0'] || '', // Fallback to Recipient-0
-          recipients: recipients.length > 0 ? recipients : undefined, // Add recipients array
-          timestamp: Number(tags['Timestamp']) || 0,
-          description: tags['Description'],
-          iv: tags['IV'],
-          sha256: tags['sha256'] || tags['SHA256'] || undefined,
-          chargeId: tags['Charge-Id'] || undefined,
-          documentId: tags['Document-Id'] || undefined
-        };
-        
-        return { id: edge.node.id, metadata };
-      });
+      return allFiles;
     } catch (error) {
       console.error('Error fetching received files from Arweave:', error);
       toast.error('Failed to fetch received files');
       return [];
     }
   }
-
+  
   /**
-   * Get all sent files for a user address
-   * Uses Arweave GraphQL to find transactions where Sender == address or ENS/Base name
+   * Helper function to fetch files with cursor-based pagination
+   * @private
    */
-  async getSentFiles(address: string): Promise<StoredFile[]> {
-    if (!address) return [];
-    try {
-      // Get all possible identifiers for this address (address + ENS/Base names)
-      const senderIdentifiers = await this.getAllRecipientIdentifiers(address);
-      // Searching for files with sender identifiers
+  private async fetchFilesWithPagination(tags: Array<{name: string, values: string[]}>): Promise<StoredFile[]> {
+    const allFiles: StoredFile[] = [];
+    let hasNextPage = true;
+    let cursor = null;
+    
+    while (hasNextPage) {
+      const tagQueries = tags.map(tag => 
+        `{ name: "${tag.name}", values: [${tag.values.map(v => `"${v}"`).join(', ')}] }`
+      ).join(',\n              ');
       
       const query = {
         query: `{
           transactions(
             tags: [
-              { name: "App-Name", values: ["TUMA-Document-Exchange"] },
-              { name: "Sender", values: [${senderIdentifiers.map(id => `"${id}"`).join(', ')}] }
+              ${tagQueries}
             ]
-            first: 1000
+            first: 100${cursor ? `,\n            after: "${cursor}"` : ''}
           ) {
+            pageInfo {
+              hasNextPage
+            }
             edges {
+              cursor
               node {
                 id
                 tags {
@@ -647,14 +586,24 @@ class ArweaveService {
           }
         }`
       };
+      
       const res = await fetch('https://arweave.net/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(query)
       });
+      
       const json = await res.json();
-      const edges = json.data.transactions.edges;
-      return edges.map((edge: any) => {
+      
+      if (!json.data || !json.data.transactions) {
+        break;
+      }
+      
+      const { edges, pageInfo } = json.data.transactions;
+      hasNextPage = pageInfo.hasNextPage;
+      
+      // Process current page results
+      const pageFiles = edges.map((edge: any) => {
         const tags: Record<string, string> = {};
         edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
         
@@ -681,8 +630,131 @@ class ArweaveService {
           chargeId: tags['Charge-Id'] || undefined,
           documentId: tags['Document-Id'] || undefined
         };
+        
         return { id: edge.node.id, metadata };
       });
+      
+      allFiles.push(...pageFiles);
+      
+      // Update cursor for next page
+      if (hasNextPage && edges.length > 0) {
+        cursor = edges[edges.length - 1].cursor;
+      }
+      
+      // Safety break to prevent infinite loops
+      if (allFiles.length > 50000) {
+        console.warn('Reached safety limit of 50,000 files for single tag query');
+        break;
+      }
+    }
+    
+    return allFiles;
+  }
+
+  /**
+   * Get all sent files for a user address
+   * Uses Arweave GraphQL to find transactions where Sender == address or ENS/Base name
+   * Implements cursor-based pagination to fetch all results (Arweave limits to 100 per query)
+   */
+  async getSentFiles(address: string): Promise<StoredFile[]> {
+    if (!address) return [];
+    try {
+      // Get all possible identifiers for this address (address + ENS/Base names)
+      const senderIdentifiers = await this.getAllRecipientIdentifiers(address);
+      // Searching for files with sender identifiers
+      
+      let allFiles: StoredFile[] = [];
+      let hasNextPage = true;
+      let cursor = null;
+      
+      // Fetch all pages using cursor-based pagination
+      while (hasNextPage) {
+        const query = {
+          query: `{
+            transactions(
+              tags: [
+                { name: "App-Name", values: ["TUMA-Document-Exchange"] },
+                { name: "Sender", values: [${senderIdentifiers.map(id => `"${id}"`).join(', ')}] }
+              ]
+              first: 100${cursor ? `,\n              after: "${cursor}"` : ''}
+            ) {
+              pageInfo {
+                hasNextPage
+              }
+              edges {
+                cursor
+                node {
+                  id
+                  tags {
+                    name
+                    value
+                  }
+                }
+              }
+            }
+          }`
+        };
+        
+        const res = await fetch('https://arweave.net/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(query)
+        });
+        const json = await res.json();
+        
+        if (!json.data || !json.data.transactions) {
+          break;
+        }
+        
+        const { edges, pageInfo } = json.data.transactions;
+        hasNextPage = pageInfo.hasNextPage;
+        
+        // Process current page results
+        const pageFiles = edges.map((edge: any) => {
+          const tags: Record<string, string> = {};
+          edge.node.tags.forEach((tag: any) => { tags[tag.name] = tag.value; });
+          
+          // Extract all recipients from Recipient-X tags
+          const recipients: string[] = [];
+          for (let i = 0; i < 10; i++) {
+            const recipientTag = `Recipient-${i}`;
+            if (tags[recipientTag]) {
+              recipients.push(tags[recipientTag]);
+            }
+          }
+          
+          const metadata: FileMetadata = {
+            name: tags['Document-Name'] || '',
+            type: tags['Document-Type'] || '',
+            size: Number(tags['Document-Size']) || 0,
+            sender: tags['Sender'] || '',
+            recipient: tags['Recipient'] || tags['Recipient-0'] || '', // Fallback to Recipient-0
+            recipients: recipients.length > 0 ? recipients : undefined, // Add recipients array
+            timestamp: Number(tags['Timestamp']) || 0,
+            description: tags['Description'],
+            iv: tags['IV'],
+            sha256: tags['sha256'] || tags['SHA256'] || undefined,
+            chargeId: tags['Charge-Id'] || undefined,
+            documentId: tags['Document-Id'] || undefined
+          };
+          return { id: edge.node.id, metadata };
+        });
+        
+        allFiles = allFiles.concat(pageFiles);
+        
+        // Update cursor for next page
+        if (hasNextPage && edges.length > 0) {
+          cursor = edges[edges.length - 1].cursor;
+        }
+        
+        // Safety break to prevent infinite loops
+        if (allFiles.length > 50000) {
+          console.warn('Reached safety limit of 50,000 files');
+          break;
+        }
+      }
+      
+      return allFiles;
     } catch (error) {
       console.error('Error fetching sent files from Arweave:', error);
       toast.error('Failed to fetch sent files');
