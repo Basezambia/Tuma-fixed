@@ -24,7 +24,7 @@ const createP2PListing = require('./api/createP2PListing');
 const purchaseP2PListing = require('./api/purchaseP2PListing');
 const confirmP2PPurchase = require('./api/confirmP2PPurchase');
 const purchaseStorage = require('./api/purchaseStorage');
-const confirmStoragePurchase = require('./api/confirmStoragePurchase');
+
 
 // Set up API routes
 app.get('/api/getArweavePrice', getArweavePrice);
@@ -38,7 +38,7 @@ app.post('/api/createP2PListing', createP2PListing);
 app.post('/api/purchaseP2PListing', purchaseP2PListing);
 app.post('/api/confirmP2PPurchase', confirmP2PPurchase);
 app.post('/api/purchaseStorage', purchaseStorage);
-app.post('/api/confirmStoragePurchase', confirmStoragePurchase);
+
 
 // Start the server
 app.listen(port, () => {
