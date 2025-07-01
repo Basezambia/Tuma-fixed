@@ -1,213 +1,133 @@
-import { arweaveService, StoredFile } from './arweave-service';
-import { toast } from 'sonner';
+import { arweaveService } from './arweave-service';
 
 class FileMonitorService {
-  private intervalId: NodeJS.Timeout | null = null;
+  private monitoringInterval: NodeJS.Timeout | null = null;
   private isMonitoring = false;
-  private userAddress: string | null = null;
+  private currentAddress: string | null = null;
   private lastReceivedCount = 0;
   private lastSentCount = 0;
-  private lastReceivedFiles: StoredFile[] = [];
-  private lastSentFiles: StoredFile[] = [];
-  private readonly POLL_INTERVAL = 30000; // 30 seconds
+  private readonly POLLING_INTERVAL = 30000; // 30 seconds
 
   /**
-   * Start monitoring for file changes
+   * Start monitoring for new files for the given address
    */
-  startMonitoring(address: string) {
-    if (this.isMonitoring && this.userAddress === address.toLowerCase()) {
-      return; // Already monitoring for this address
+  async startMonitoring(address: string): Promise<void> {
+    if (this.isMonitoring && this.currentAddress === address.toLowerCase()) {
+      return; // Already monitoring this address
     }
 
-    this.stopMonitoring(); // Stop any existing monitoring
-    this.userAddress = address.toLowerCase();
+    // Stop any existing monitoring
+    this.stopMonitoring();
+
+    this.currentAddress = address.toLowerCase();
     this.isMonitoring = true;
 
     // Initialize baseline counts
-    this.initializeBaseline();
+    try {
+      const [receivedFiles, sentFiles] = await Promise.all([
+        arweaveService.getReceivedFiles(this.currentAddress),
+        arweaveService.getSentFiles(this.currentAddress)
+      ]);
+      
+      this.lastReceivedCount = receivedFiles.length;
+      this.lastSentCount = sentFiles.length;
+    } catch (error) {
+      console.error('Failed to initialize file monitoring baseline:', error);
+      this.lastReceivedCount = 0;
+      this.lastSentCount = 0;
+    }
 
-    // Start polling
-    this.intervalId = setInterval(() => {
-      this.checkForChanges();
-    }, this.POLL_INTERVAL);
+    // Start periodic monitoring
+    this.monitoringInterval = setInterval(() => {
+      this.checkForNewFiles();
+    }, this.POLLING_INTERVAL);
 
     console.log(`File monitoring started for address: ${address}`);
   }
 
   /**
-   * Stop monitoring
+   * Stop file monitoring
    */
-  stopMonitoring() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+  stopMonitoring(): void {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
     }
+    
     this.isMonitoring = false;
-    this.userAddress = null;
+    this.currentAddress = null;
     this.lastReceivedCount = 0;
     this.lastSentCount = 0;
-    this.lastReceivedFiles = [];
-    this.lastSentFiles = [];
+    
     console.log('File monitoring stopped');
   }
 
   /**
-   * Initialize baseline file counts and data
+   * Check for new files and emit events if found
    */
-  private async initializeBaseline() {
-    if (!this.userAddress) return;
-
-    try {
-      const [receivedFiles, sentFiles] = await Promise.all([
-        arweaveService.getReceivedFiles(this.userAddress),
-        arweaveService.getSentFiles(this.userAddress)
-      ]);
-
-      // Filter out vault files
-      const filteredReceived = receivedFiles.filter(file => 
-        !file.metadata.description?.includes("[VAULT]") &&
-        !file.metadata.documentId?.startsWith("vault_")
-      );
-      
-      const filteredSent = sentFiles.filter(file => 
-        !file.metadata.description?.includes("[VAULT]") &&
-        !file.metadata.documentId?.startsWith("vault_")
-      );
-
-      this.lastReceivedCount = filteredReceived.length;
-      this.lastSentCount = filteredSent.length;
-      this.lastReceivedFiles = filteredReceived;
-      this.lastSentFiles = filteredSent;
-
-      console.log(`Baseline initialized - Received: ${this.lastReceivedCount}, Sent: ${this.lastSentCount}`);
-    } catch (error) {
-      console.error('Error initializing baseline:', error);
+  private async checkForNewFiles(): Promise<void> {
+    if (!this.isMonitoring || !this.currentAddress) {
+      return;
     }
-  }
-
-  /**
-   * Check for file changes and emit events
-   */
-  private async checkForChanges() {
-    if (!this.userAddress || !this.isMonitoring) return;
 
     try {
       const [receivedFiles, sentFiles] = await Promise.all([
-        arweaveService.getReceivedFiles(this.userAddress),
-        arweaveService.getSentFiles(this.userAddress)
+        arweaveService.getReceivedFiles(this.currentAddress),
+        arweaveService.getSentFiles(this.currentAddress)
       ]);
-
-      // Filter out vault files
-      const filteredReceived = receivedFiles.filter(file => 
-        !file.metadata.description?.includes("[VAULT]") &&
-        !file.metadata.documentId?.startsWith("vault_")
-      );
-      
-      const filteredSent = sentFiles.filter(file => 
-        !file.metadata.description?.includes("[VAULT]") &&
-        !file.metadata.documentId?.startsWith("vault_")
-      );
 
       // Check for new received files
-      const newReceivedFiles = filteredReceived.filter(file => 
-        !this.lastReceivedFiles.some(lastFile => lastFile.id === file.id)
-      );
+      if (receivedFiles.length > this.lastReceivedCount) {
+        const newReceivedCount = receivedFiles.length - this.lastReceivedCount;
+        console.log(`Found ${newReceivedCount} new received file(s)`);
+        
+        // Emit event for new received files
+        window.dispatchEvent(new CustomEvent('tuma:newReceivedFile', {
+          detail: {
+            count: newReceivedCount,
+            files: receivedFiles.slice(0, newReceivedCount)
+          }
+        }));
+        
+        this.lastReceivedCount = receivedFiles.length;
+      }
 
       // Check for new sent files
-      const newSentFiles = filteredSent.filter(file => 
-        !this.lastSentFiles.some(lastFile => lastFile.id === file.id)
-      );
-
-      // Handle new received files
-      if (newReceivedFiles.length > 0) {
-        console.log(`Detected ${newReceivedFiles.length} new received file(s)`);
+      if (sentFiles.length > this.lastSentCount) {
+        const newSentCount = sentFiles.length - this.lastSentCount;
+        console.log(`Found ${newSentCount} new sent file(s)`);
         
-        // Show notification
-        toast.success(`${newReceivedFiles.length} new file(s) received!`, {
-          description: newReceivedFiles.length === 1 
-            ? `"${newReceivedFiles[0].metadata.name}" from ${newReceivedFiles[0].metadata.sender.slice(0, 6)}...${newReceivedFiles[0].metadata.sender.slice(-4)}`
-            : `${newReceivedFiles.length} files received`,
-          duration: 5000,
-          action: {
-            label: 'View Files',
-            onClick: () => {
-              window.location.href = '/documents?tab=received';
-            }
+        // Emit event for new sent files
+        window.dispatchEvent(new CustomEvent('tuma:newSentFile', {
+          detail: {
+            count: newSentCount,
+            files: sentFiles.slice(0, newSentCount)
           }
-        });
-
-        // Emit events for each new received file
-        newReceivedFiles.forEach(file => {
-          const event = new CustomEvent('tuma:newReceivedFile', {
-            detail: { id: file.id, metadata: file.metadata }
-          });
-          window.dispatchEvent(event);
-        });
-
-        // Refresh the page to show new files
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      }
-
-      // Handle sent file counter changes
-      if (filteredSent.length > this.lastSentCount) {
-        const newSentCount = filteredSent.length - this.lastSentCount;
-        console.log(`Detected ${newSentCount} new sent file(s)`);
+        }));
         
-        // Show notification for sent files counter change
-        toast.info(`${newSentCount} file(s) sent successfully!`, {
-          description: newSentCount === 1 
-            ? `"${newSentFiles[0]?.metadata.name || 'File'}" sent`
-            : `${newSentCount} files sent`,
-          duration: 4000,
-          action: {
-            label: 'View Sent',
-            onClick: () => {
-              window.location.href = '/documents?tab=sent';
-            }
-          }
-        });
-
-        // Emit events for each new sent file
-        newSentFiles.forEach(file => {
-          const event = new CustomEvent('tuma:newSentFile', {
-            detail: { id: file.id, metadata: file.metadata }
-          });
-          window.dispatchEvent(event);
-        });
+        this.lastSentCount = sentFiles.length;
       }
-
-      // Update baseline data
-      this.lastReceivedCount = filteredReceived.length;
-      this.lastSentCount = filteredSent.length;
-      this.lastReceivedFiles = filteredReceived;
-      this.lastSentFiles = filteredSent;
-
     } catch (error) {
-      console.error('Error checking for file changes:', error);
-      // Don't show error toast for background polling to avoid spam
+      console.error('Error checking for new files:', error);
     }
   }
 
   /**
    * Get current monitoring status
    */
-  getStatus() {
+  getStatus(): { isMonitoring: boolean; address: string | null } {
     return {
       isMonitoring: this.isMonitoring,
-      userAddress: this.userAddress,
-      lastReceivedCount: this.lastReceivedCount,
-      lastSentCount: this.lastSentCount
+      address: this.currentAddress
     };
   }
 
   /**
-   * Force a check for changes (useful for manual refresh)
+   * Force a check for new files (useful for manual refresh)
    */
-  async forceCheck() {
+  async forceCheck(): Promise<void> {
     if (this.isMonitoring) {
-      await this.checkForChanges();
+      await this.checkForNewFiles();
     }
   }
 }

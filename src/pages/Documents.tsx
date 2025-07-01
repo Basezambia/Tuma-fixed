@@ -347,8 +347,8 @@ const Documents = () => {
           // Decrypt metadata to get recipient keys
           const decryptedMetadata = await decryptMetadata(
             userMetadata,
-            sender,
-            foundKey || userAddress.toLowerCase(), // Use the key that was actually found
+            sender.toLowerCase(),
+            userAddress.toLowerCase(),
             metadata.documentId || docId
           );
           
@@ -357,8 +357,8 @@ const Documents = () => {
             payload.ciphertext,
             payload.iv,
             decryptedMetadata.recipientKeys,
-            sender,
-            foundKey || userAddress.toLowerCase(), // Use the key that was actually found
+            sender.toLowerCase(),
+            userAddress.toLowerCase(),
             metadata.documentId || docId
           );
           
@@ -397,7 +397,7 @@ const Documents = () => {
         decrypted = await decryptFileBufferHKDF(
           ciphertextBase64,
           iv,
-          sender,
+          sender.toLowerCase(),
           userAddress.toLowerCase(),
           salt
         );

@@ -236,7 +236,7 @@ export async function decryptFileForMultipleRecipients(
   
   const keyEncryptionKey = await deriveSymmetricKeyHKDF(
     senderAddress,
-    foundKey || userAddress, // Use the key that was actually found
+    userAddress,
     documentId
   );
   
