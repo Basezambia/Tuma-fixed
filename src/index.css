@@ -3,6 +3,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fix for landing image blurriness in specific viewport range */
+@media (min-width: 321px) and (max-width: 450px) {
+  .hero-image-container img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+}
+
 @layer base {
   :root {
     --background: 210 40% 98%;
@@ -393,6 +403,14 @@
   transform-origin: center !important;
   max-width: 70% !important;
   margin: 0 auto !important;
+}
+
+/* Fund Card Payment Method Button - Render above all components on mobile */
+@media (max-width: 1024px) {
+  [data-testid="ockFundCardPaymentMethodSelectRow__CARD"] {
+    position: relative !important;
+    z-index: 9999 !important;
+  }
 }
 
 /* Remove wallet modal logo */

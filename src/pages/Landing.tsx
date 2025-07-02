@@ -239,16 +239,26 @@ const Landing = () => {
         {/* Hero Section */}
         <div className="relative">
           {/* Hero Background Image */}
-          <div className="w-full h-screen">
+          <div className="w-full h-screen hero-image-container">
             <picture>
-              {/* Mobile devices (up to 480px) */}
+              {/* Small mobile devices (up to 320px) */}
               <source 
-                media="(max-width: 480px)" 
+                media="(max-width: 320px)" 
+                srcSet="/hero-image-mobile.png" 
+              />
+              {/* Medium mobile devices (321px to 450px) - Fixed blurriness range */}
+              <source 
+                media="(min-width: 321px) and (max-width: 450px)" 
+                srcSet="/hero-image-tablet.png" 
+              />
+              {/* Large mobile devices (451px to 480px) */}
+              <source 
+                media="(min-width: 451px) and (max-width: 480px)" 
                 srcSet="/hero-image-mobile.png" 
               />
               {/* Tablet devices (481px to 768px) */}
               <source 
-                media="(max-width: 768px)" 
+                media="(min-width: 481px) and (max-width: 768px)" 
                 srcSet="/hero-image-tablet.png" 
               />
               {/* Desktop devices (769px and up) */}

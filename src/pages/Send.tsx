@@ -143,23 +143,37 @@ const Send = () => {
   const handleAddressChange = async (value: string) => {
     // Check if the input looks like an ENS/Base name
     if (value.includes('.eth') || value.includes('.base.eth')) {
-      // For ENS/Base names, show the name while resolving
+      // For ENS/Base names, set the name immediately and resolve in background
       setCurrentRecipient({...currentRecipient, address: value, originalInput: value});
-      const resolvedAddress = await resolveNameToAddress(value);
-      if (resolvedAddress) {
-        // Store the Base name as the primary address, resolved address for encryption
-        setCurrentRecipient({
-          ...currentRecipient, 
-          address: value, // Store the Base name as the primary identifier
+      
+      // Resolve in background without blocking user interaction
+      resolveNameToAddress(value).then(resolvedAddress => {
+        if (resolvedAddress) {
+          // Silently update with resolved address
+          setCurrentRecipient(prev => ({
+            ...prev, 
+            address: value, // Keep the Base name as the primary identifier
+            originalInput: value,
+            resolvedAddress: resolvedAddress // Store resolved address for encryption
+          }));
+        } else {
+          // Silently mark as unresolved - validation will catch this later
+          setCurrentRecipient(prev => ({
+            ...prev,
+            address: value,
+            originalInput: value,
+            resolvedAddress: undefined
+          }));
+        }
+      }).catch(() => {
+        // Silently handle resolution errors
+        setCurrentRecipient(prev => ({
+          ...prev,
+          address: value,
           originalInput: value,
-          resolvedAddress: resolvedAddress // Store resolved address for encryption
-        });
-        toast.success(`Resolved ${value} to ${resolvedAddress.slice(0, 6)}...${resolvedAddress.slice(-4)}`);
-      } else {
-        toast.error(`Could not resolve ${value}. Please check the name or enter a direct address.`);
-        // Don't allow unresolved names to be added
-        setCurrentRecipient({...currentRecipient, address: '', originalInput: value});
-      }
+          resolvedAddress: undefined
+        }));
+      });
     } else {
       // For regular addresses, set immediately and clear originalInput
       setCurrentRecipient({...currentRecipient, address: value, originalInput: ''});
@@ -1462,26 +1476,30 @@ const Send = () => {
                               className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm transition-all duration-200"
                               value={currentRecipient.name}
                               onChange={(e) => setCurrentRecipient({...currentRecipient, name: e.target.value})}
-                              onKeyPress={(e) => {
+                              onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
+                                  e.stopPropagation();
                                   // Move focus to address field if name is filled but address is empty
                                   if (currentRecipient.name && !currentRecipient.address) {
                                     document.getElementById('recipient-address')?.focus();
                                   } else if (currentRecipient.name && currentRecipient.address) {
-                                    // For Base names, check if we have a resolved address
-                                    if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
-                                      toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
-                                      return;
+                                    // For Base names, allow adding even if still resolving
+                                    if (isENSName(currentRecipient.address)) {
+                                      // Add the recipient with current state - resolution will continue in background
+                                      setRecipients([...recipients, currentRecipient]);
+                                      setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
+                                      saveRecentRecipient(currentRecipient);
+                                    } else {
+                                      // For regular addresses, validate the address format
+                                      if (!isValidEthereumAddress(currentRecipient.address)) {
+                                        toast.error('Please enter a valid Ethereum address.');
+                                        return;
+                                      }
+                                      setRecipients([...recipients, currentRecipient]);
+                                      setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
+                                      saveRecentRecipient(currentRecipient);
                                     }
-                                    // For regular addresses, validate the address format
-                                    if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
-                                      toast.error('Please enter a valid Ethereum address.');
-                                      return;
-                                    }
-                                    setRecipients([...recipients, currentRecipient]);
-                                    setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
-                                    saveRecentRecipient(currentRecipient);
                                   }
                                 }
                               }}
@@ -1510,24 +1528,37 @@ const Send = () => {
                               className="pl-10 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none py-2.5 text-gray-900 dark:text-white text-sm font-mono transition-all duration-200"
                               value={currentRecipient.address}
                               onChange={(e) => handleAddressChange(e.target.value)}
-                              onKeyPress={(e) => {
+                              onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
+                                  e.stopPropagation();
                                   if (currentRecipient.name && currentRecipient.address) {
-                                    // For Base names, check if we have a resolved address
-                                    if (isENSName(currentRecipient.address) && !currentRecipient.resolvedAddress) {
-                                      toast.error('Please wait for Base name resolution to complete or enter a valid Ethereum address.');
-                                      return;
+                                    // For Base names, allow adding even if still resolving
+                                    if (isENSName(currentRecipient.address)) {
+                                      // Add the recipient with current state - resolution will continue in background
+                                      setRecipients([...recipients, currentRecipient]);
+                                      setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
+                                      saveRecentRecipient(currentRecipient);
+                                      // Focus back to name field for next recipient
+                                      setTimeout(() => {
+                                        document.getElementById('recipient-name')?.focus();
+                                      }, 100);
+                                    } else {
+                                      // For regular addresses, validate the address format
+                                      if (!isValidEthereumAddress(currentRecipient.address)) {
+                                        toast.error('Please enter a valid Ethereum address.');
+                                        return;
+                                      }
+                                      setRecipients([...recipients, currentRecipient]);
+                                      setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
+                                      saveRecentRecipient(currentRecipient);
+                                      // Focus back to name field for next recipient
+                                      setTimeout(() => {
+                                        document.getElementById('recipient-name')?.focus();
+                                      }, 100);
                                     }
-                                    // For regular addresses, validate the address format
-                                    if (!isENSName(currentRecipient.address) && !isValidEthereumAddress(currentRecipient.address)) {
-                                      toast.error('Please enter a valid Ethereum address.');
-                                      return;
-                                    }
-                                    setRecipients([...recipients, currentRecipient]);
-                                    setCurrentRecipient({name: "", address: "", originalInput: "", resolvedAddress: ""});
-                                    saveRecentRecipient(currentRecipient);
-                                    // Focus back to name field for next recipient
+                                  } else if (!currentRecipient.name) {
+                                    // If no name, focus on name field
                                     document.getElementById('recipient-name')?.focus();
                                   }
                                 }

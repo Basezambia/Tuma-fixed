@@ -210,8 +210,8 @@ const Profile = () => {
         position: relative !important;
       }
       
-      /* Ensure dropdown content appears above other elements */
-      @media (max-width: 768px) {
+      /* Ensure funding component appears above sidebar on mobile */
+      @media (max-width: 1024px) {
         .custom-fund-card-container {
           z-index: 9999 !important;
           position: relative !important;
@@ -362,7 +362,7 @@ const Profile = () => {
               </div>
             </div>
             {/* Sidebar */}
-            <div className="space-y-4 sm:space-y-6 relative z-10">
+            <div className="space-y-4 sm:space-y-6 relative z-[5]">
               <div className="backdrop-blur-xl bg-white/40 dark:bg-gray-800 border border-white/20 dark:border-gray-700 shadow-lg rounded-xl p-4 sm:p-6">
                 <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 dark:text-white">Wallet Info</h3>
                 <div className="mb-3 sm:mb-4">
@@ -430,7 +430,7 @@ const Profile = () => {
               <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-4 sm:mb-6">
                 Purchase USDC to pay for document sharing and gas fees. Choose an amount below or enter a custom amount.
               </p>
-              <div className="mt-4 sm:mt-6 custom-fund-card-container relative z-50">
+              <div className="mt-4 sm:mt-6 custom-fund-card-container relative z-[100]">
                 <FundCard
                   assetSymbol="USDC"
                   country="US"
@@ -443,7 +443,7 @@ const Profile = () => {
 
             </div>
             {/* Sidebar */}
-            <div className="space-y-4 sm:space-y-6 relative z-10">
+            <div className="space-y-4 sm:space-y-6 relative z-[1]">
               <div className="backdrop-blur-xl bg-white/40 dark:bg-gray-800 border border-white/20 dark:border-gray-700 shadow-lg rounded-xl p-4 sm:p-6">
                 <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 dark:text-white">About Funding</h3>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-3 sm:mb-4">

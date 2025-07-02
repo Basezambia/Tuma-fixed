@@ -58,7 +58,7 @@ const About = () => {
       </section>
 
       {/* What We Do Section */}
-      <section className="py-12 sm:py-16 lg:py-20 bg-white dark:bg-gray-800">
+      <section className="py-12 sm:py-16 lg:py-20 bg-gray-50 dark:bg-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
@@ -70,7 +70,7 @@ const About = () => {
           </div>
           
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            <div className="bg-gray-50 dark:bg-gray-700 p-6 sm:p-8 rounded-xl">
+            <div className="bg-white dark:bg-gray-700 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
                 <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
               </div>
@@ -82,7 +82,7 @@ const About = () => {
               </p>
             </div>
             
-            <div className="bg-gray-50 dark:bg-gray-700 p-6 sm:p-8 rounded-xl">
+            <div className="bg-white dark:bg-gray-700 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
                 <Network className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
               </div>
@@ -94,7 +94,7 @@ const About = () => {
               </p>
             </div>
             
-            <div className="bg-gray-50 dark:bg-gray-700 p-6 sm:p-8 rounded-xl">
+            <div className="bg-white dark:bg-gray-700 p-6 sm:p-8 rounded-xl shadow-sm border border-gray-100 dark:border-gray-600">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mb-4 sm:mb-6">
                 <Bolt className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
               </div>
@@ -110,7 +110,7 @@ const About = () => {
       </section>
 
       {/* Our Mission Section */}
-      <section className="py-12 sm:py-16 lg:py-20 bg-gray-100 dark:bg-gray-900">
+      <section className="py-12 sm:py-16 lg:py-20 bg-white dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
             <div>
@@ -134,7 +134,7 @@ const About = () => {
               </div>
             </div>
             
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+            <div className="bg-gray-50 dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="grid grid-cols-2 gap-6">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">200+</div>
@@ -159,7 +159,7 @@ const About = () => {
       </section>
 
       {/* Our Team Section */}
-      <section className="py-20 bg-white dark:bg-gray-800">
+      <section className="py-20 bg-gray-50 dark:bg-gray-800">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
@@ -181,7 +181,7 @@ const About = () => {
                 Base Zambia
               </h3>
               <p className="text-gray-600 dark:text-gray-300 text-sm max-w-4xl mx-auto px-8">
-                Base Zambia builds and grows the blockchain community in Zambia and Southern Africa. Winners of Onchain Summer 2 and alumni of Incubase 001, we bring Zambia onchain through education and innovation.
+                Base Zambia empowers and expands the blockchain community across Zambia and Southern Africa. As Onchain Summer 2 winners and Incubase 001 alumni, we transform Zambia's onchain journey through powerful education and breakthrough innovation.
               </p>
             </div>
           </div>
@@ -189,7 +189,7 @@ const About = () => {
       </section>
 
       {/* Company Values Section */}
-      <section className="py-20 bg-gray-100 dark:bg-gray-900">
+      <section className="py-20 bg-white dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
@@ -253,7 +253,7 @@ const About = () => {
       </section>
 
       {/* Contact Section */}
-      <section className="py-20 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white">
+      <section className="py-20 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-16">
             <div>
@@ -264,30 +264,35 @@ const About = () => {
                 Have questions about Tuma? Want to learn more about our technology? We'd love to hear from you.
               </p>
               
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
-                    <Mail className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">Email</h4>
-                    <p className="text-gray-600 dark:text-gray-300">tumaapp@gmail.com</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <Building className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">Office</h4>
-                    <p className="text-gray-600 dark:text-gray-300">onchain</p>
-                  </div>
+              <div className="space-y-6">
+                <h3 className="text-xl font-semibold mb-4">Connect With Us</h3>
+                <div className="flex items-center gap-6">
+                  <a href="mailto:tumaapp@gmail.com" className="group">
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                      <Mail className="w-7 h-7 text-white" />
+                    </div>
+                  </a>
+                  
+                  <a href="https://twitter.com/tumaapp" target="_blank" rel="noopener noreferrer" className="group">
+                    <div className="w-14 h-14 bg-gradient-to-br from-sky-400 to-sky-500 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                      <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                      </svg>
+                    </div>
+                  </a>
+                  
+                  <a href="https://warpcast.com/tumaapp" target="_blank" rel="noopener noreferrer" className="group">
+                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                      <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                      </svg>
+                    </div>
+                  </a>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
               <h3 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Ready to Get Started?</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-8">
                 Join the future of file sharing and storage. Experience the security and permanence of blockchain-based file storage.
